@@ -1,0 +1,82 @@
+# Kleza clients (https://kleza.io/clients/) - one URL per line, # = comment
+#
+# To also watch specific SECTIONS of a site (a booking page, a login page,
+# a portal), indent the section URL under its site. Each section is monitored
+# and alerted on independently, so a broken section pages you even when the
+# homepage is fine. Optional "# Label" after the URL names it:
+#
+#   # Eesha Hospitals
+#   https://eeshahospitals.com
+#     https://eeshahospitals.com/book-appointment   # Appointments
+#     https://eeshahospitals.com/patient-portal     # Patient Portal
+#
+# Kleza
+https://kleza.io
+# Interim Healthcare
+https://www.interimhealthcare.com
+# Right at Home
+https://www.rightathome.net
+# Home Instead
+https://www.homeinstead.com
+# Assured Home Nursing
+https://myassuredhomenursing.com
+# Dhiti Logic
+https://www.dhitilogic.com
+# LIAFI
+https://liafi.org
+# Stadium Pharmacy
+https://stadiumrx.com
+# Kidneyfy
+https://kidneyfy.com
+# Care Health
+https://carehealth.ai
+# Incredible Tots
+https://incredibletots.com
+# Jiomed Family Care
+https://jiomedfamilycare.com
+# Eesha Hospitals
+https://eeshahospitals.com
+# BMR Law Offices
+https://bmrlawoffices.com
+# Tarish Financial
+https://www.tarishfinancial.com
+# Ojas Infinity
+https://ojasinfinity.com
+# Endless Tunes
+https://www.endlesstunes.com
+# Congruent Remedies
+https://congruentremedies.com
+# Finoplus
+https://finoplus.in
+# Cinfosys
+https://cinfosysweb.com
+# Ingenious Inno
+https://ingeniousinno.com
+# Profundity Journals
+https://profundityjournals.com
+# Alphatek IT Solutions
+https://alphatekitsolutions.com
+# Techton Global
+https://techtonglobal.com
+# Ankrotech
+https://www.ankrotech.com
+# Before You Solutions
+https://beforeyousolutions.com
+# Tech Total
+https://techtotal.in
+# Skill Elevate IT
+https://skillelevateit.com
+# Rahul Hospital
+https://rahulhospital.in
+# Mindful Parenting Hub
+https://mindfulparentinghub.in
+# Amruth Sankalp Clinic
+https://amruthasankalpwellness.com
+# Sanstark
+https://sanstark.ai
+# SVS Agencies
+https://svsagencies.com
+# Riva Mental Health
+https://rivamh.com
+# Accounts Sage
+https://accountsage.in

@@ -1,0 +1,32 @@
+# --- Runtime data & secrets (never commit) ---
+# monitoring.db: SQLite with the admin password hash, sessions, all check history
+monitoring.db
+# Teams digest / standalone-monitor alert state
+.digest_state.json
+.monitor_alert_state.json
+# local env vars, if you use a file
+.env
+
+# --- Generated output ---
+# rebuild with: python generate_dashboard.py
+dashboard.html
+down_sites_report.md
+
+# --- Logs ---
+alerts.log
+monitor_log.jsonl
+server_out.log
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

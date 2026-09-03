@@ -1,0 +1,12 @@
+# One URL per line. A "# Comment" line directly above a URL names it.
+#
+# Indent a URL to also monitor it as a SECTION of the site above it
+# (own dashboard row + own alerts). Text after an inline "# ..." names it.
+
+# Example Company
+https://example.com
+  https://example.com/login     # Login
+  https://example.com/checkout  # Checkout
+
+# Another Site
+https://another.example.org

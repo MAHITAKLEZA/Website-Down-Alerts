@@ -1,0 +1,5 @@
+crawl4ai>=0.4.0
+beautifulsoup4
+lxml
+cryptography
+aiohttp
