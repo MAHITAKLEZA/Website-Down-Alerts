@@ -15,38 +15,36 @@ _CSS = """
     --critical:#c8202b; --critical-soft:#c8202b12; --good:#128a52; --good-soft:#128a5212;
   }
   * { box-sizing:border-box; }
-  /* Root font-size scales with the viewport, so the whole card grows on a big
-     screen instead of looking tiny. Everything below is sized in rem. */
-  html { font-size:clamp(18px, 1.25vw, 28px); }
+  html { font-size:16px; }
   html, body { background:var(--page); }
   body {
     margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    color:var(--text); padding:1.6rem;
+    color:var(--text); padding:24px;
     font-family:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif; -webkit-font-smoothing:antialiased;
   }
   .card {
-    width:100%; max-width:38rem; background:var(--surface); border:1px solid var(--border);
-    border-radius:1.1rem; padding:3.6rem 4rem; box-shadow:0 0.6rem 2.5rem rgba(17,23,34,.11);
+    width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:36px 36px 40px; box-shadow:0 6px 30px rgba(17,23,34,.08);
   }
-  .brand { display:flex; align-items:center; gap:0.7rem; font-weight:800; font-size:1.4rem; letter-spacing:.03em; }
-  .brand .dot { width:0.85rem; height:0.85rem; border-radius:50%; background:var(--accent); flex-shrink:0; }
-  h1 { font-size:2.5rem; line-height:1.15; margin:1.4rem 0 0.6rem; }
-  .sub { color:var(--text-3); font-size:1.1rem; margin-bottom:2rem; }
-  label { display:block; font-size:0.95rem; font-weight:600; color:var(--text-2); margin:1.3rem 0 0.55rem; }
+  .brand { display:flex; align-items:center; gap:9px; font-weight:800; font-size:1.05rem; letter-spacing:.03em; }
+  .brand .dot { width:11px; height:11px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+  h1 { font-size:1.55rem; line-height:1.15; margin:16px 0 6px; }
+  .sub { color:var(--text-3); font-size:0.9rem; margin-bottom:20px; }
+  label { display:block; font-size:0.8rem; font-weight:600; color:var(--text-2); margin:14px 0 6px; }
   input {
-    width:100%; background:var(--field); border:1px solid var(--field-border); border-radius:0.6rem;
-    padding:1rem 1.15rem; font-size:1.25rem; color:var(--text); font-family:inherit;
+    width:100%; background:var(--field); border:1px solid var(--field-border); border-radius:9px;
+    padding:11px 13px; font-size:0.95rem; color:var(--text); font-family:inherit;
   }
   input:focus-visible { outline:2px solid var(--accent); outline-offset:1px; background:#fff; }
   button {
-    width:100%; margin-top:2.2rem; background:var(--accent); color:#fff; border:none; border-radius:0.6rem;
-    padding:1.1rem; font-size:1.3rem; font-weight:700; cursor:pointer; font-family:inherit;
+    width:100%; margin-top:22px; background:var(--accent); color:#fff; border:none; border-radius:9px;
+    padding:12px; font-size:1rem; font-weight:700; cursor:pointer; font-family:inherit;
   }
   button:hover { background:var(--accent-dark); }
-  .msg { border-radius:0.6rem; padding:0.8rem 1rem; font-size:0.95rem; font-weight:600; margin-bottom:0.3rem; }
+  .msg { border-radius:8px; padding:10px 13px; font-size:0.85rem; font-weight:600; margin-bottom:2px; }
   .msg.err { background:var(--critical-soft); color:var(--critical); }
   .msg.info { background:var(--good-soft); color:var(--good); }
-  .switch { margin-top:1.7rem; text-align:center; font-size:1rem; color:var(--text-3); }
+  .switch { margin-top:18px; text-align:center; font-size:0.9rem; color:var(--text-3); }
   .switch a { color:var(--accent); font-weight:600; text-decoration:none; }
   .switch a:hover { text-decoration:underline; }
 """

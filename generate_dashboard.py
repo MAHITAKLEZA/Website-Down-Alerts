@@ -410,10 +410,10 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
      system setting, per explicit request for a white background. */
 
   * {{ box-sizing: border-box; }}
-  /* rem is relative to the ROOT element, not body -- this is the one line
-     that scales every rem-sized thing on the page (KPIs, table, sidebar,
-     health panel, alerts, settings) up together. */
-  html {{ font-size: 24px; }}
+  /* rem is relative to the ROOT element, not body -- this one line scales
+     every rem-sized thing on the page (KPIs, table, sidebar, health panel,
+     alerts, settings) together. 16px = normal browser size. */
+  html {{ font-size: 16px; }}
   body {{ margin: 0; background: var(--bg); color: var(--text); font-family: 'Manrope', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }}
   .mono {{ font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }}
   h1, h2, h3 {{ font-family: 'Archivo', system-ui, sans-serif; text-wrap: balance; margin: 0; }}
@@ -422,7 +422,7 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   svg {{ width: 100%; height: 100%; }}
   button {{ font: inherit; }}
 
-  .layout {{ display: grid; grid-template-columns: 262px 1fr; min-height: 100vh; }}
+  .layout {{ display: grid; grid-template-columns: 210px 1fr; min-height: 100vh; }}
   @media (max-width: 860px) {{
     .layout {{ grid-template-columns: 76px 1fr; }}
     .sidebar-brand span:not(.icon) {{ display: none; }}
@@ -430,27 +430,27 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
     .nav-item {{ justify-content: center; padding: 15px; }}
   }}
 
-  .sidebar {{ background: var(--sidebar-bg); color: var(--sidebar-text); padding: 24px 16px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; border-right: 1px solid var(--border); }}
-  .sidebar-brand {{ display: flex; align-items: center; gap: 11px; padding: 6px 10px 26px; color: var(--sidebar-active); font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 1.3rem; }}
-  .sidebar-brand .icon {{ width: 24px; height: 24px; color: var(--accent); flex-shrink: 0; }}
-  .sidebar-nav {{ display: flex; flex-direction: column; gap: 6px; }}
+  .sidebar {{ background: var(--sidebar-bg); color: var(--sidebar-text); padding: 14px 10px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; border-right: 1px solid var(--border); }}
+  .sidebar-brand {{ display: flex; align-items: center; gap: 9px; padding: 4px 8px 14px; color: var(--sidebar-active); font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 1.05rem; }}
+  .sidebar-brand .icon {{ width: 19px; height: 19px; color: var(--accent); flex-shrink: 0; }}
+  .sidebar-nav {{ display: flex; flex-direction: column; gap: 3px; }}
   .nav-item {{
-    display: flex; align-items: center; gap: 13px; padding: 15px 16px; border-radius: 10px;
-    font-size: 1.18rem; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 8px;
+    font-size: 0.95rem; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
     border: none; background: none; color: var(--sidebar-text); width: 100%; text-align: left; font-family: 'Manrope', sans-serif;
   }}
-  .nav-item .icon {{ width: 24px; height: 24px; flex-shrink: 0; }}
+  .nav-item .icon {{ width: 18px; height: 18px; flex-shrink: 0; }}
   .nav-item:hover {{ background: var(--surface-2); color: var(--sidebar-active); }}
   .nav-item.active {{ background: var(--accent); color: #ffffff; }}
   .nav-item:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
 
-  .content {{ padding: 30px 34px 64px; width: 100%; }}
+  .content {{ padding: 18px 22px 36px; width: 100%; }}
   section.view {{ display: none; }}
   section.view.active {{ display: block; }}
 
-  .page-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; flex-wrap: wrap; gap: 12px; }}
-  .page-header h1 {{ font-size: 1.7rem; font-weight: 800; }}
-  .live-clock {{ display: flex; align-items: center; gap: 12px; font-size: 1rem; }}
+  .page-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }}
+  .page-header h1 {{ font-size: 1.35rem; font-weight: 800; }}
+  .live-clock {{ display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }}
   .live-dot {{ width: 9px; height: 9px; border-radius: 50%; background: var(--good); animation: pulse 2s infinite; flex-shrink: 0; }}
   @media (prefers-reduced-motion: reduce) {{ .live-dot, .spinner {{ animation: none; }} }}
   @keyframes pulse {{ 0% {{ box-shadow: 0 0 0 0 rgba(52,199,123,.5); }} 70% {{ box-shadow: 0 0 0 8px rgba(52,199,123,0); }} 100% {{ box-shadow: 0 0 0 0 rgba(52,199,123,0); }} }}
@@ -470,12 +470,12 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .refresh-overlay .spinner {{ display: inline-block; width: 34px; height: 34px; border-width: 3px; color: var(--accent); }}
   .refresh-overlay-text {{ font-weight: 600; color: var(--text); }}
 
-  .kpi-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }}
+  .kpi-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }}
   @media (max-width: 900px) {{ .kpi-row {{ grid-template-columns: repeat(2, 1fr); }} }}
   @media (max-width: 560px) {{ .kpi-row {{ grid-template-columns: 1fr; }} }}
   .kpi {{
-    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 26px 28px;
-    box-shadow: var(--shadow); display: flex; align-items: center; gap: 22px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px;
+    box-shadow: var(--shadow); display: flex; align-items: center; gap: 13px;
     transition: transform .18s ease, box-shadow .18s ease;
   }}
   .kpi:hover {{ transform: translateY(-3px); box-shadow: 0 4px 8px rgba(16,21,31,.08), 0 16px 32px -12px rgba(16,21,31,.22); }}
@@ -495,15 +495,15 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .trend-bad {{ color: var(--critical); }}
   .trend-flat {{ color: var(--text-3); font-weight: 500; }}
 
-  .kpi-icon {{ width: 68px; height: 68px; border-radius: 15px; display: flex; align-items: center; justify-content: center; padding: 15px; flex-shrink: 0; }}
+  .kpi-icon {{ width: 40px; height: 40px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 9px; flex-shrink: 0; }}
   .kpi.k-total .kpi-icon {{ background: linear-gradient(135deg, var(--neutral), var(--neutral-dark)); color: #fff; }}
   .kpi.k-good .kpi-icon {{ background: linear-gradient(135deg, var(--good), var(--good-dark)); color: #fff; }}
   .kpi.k-critical .kpi-icon {{ background: linear-gradient(135deg, var(--critical), var(--critical-orange)); color: #fff; }}
   .kpi.k-alerts .kpi-icon {{ background: linear-gradient(135deg, var(--neutral), var(--neutral-dark)); color: #fff; }}
-  .kpi-text {{ display: flex; flex-direction: column; gap: 6px; min-width: 0; }}
-  .kpi-label {{ font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 700; }}
-  .kpi-value {{ font-family: 'Archivo', sans-serif; font-size: 3.2rem; font-weight: 800; line-height: 1; }}
-  .kpi.k-critical .kpi-value {{ color: var(--critical); font-size: 3.5rem; font-weight: 900; animation: critical-pulse 1.8s ease-in-out infinite; }}
+  .kpi-text {{ display: flex; flex-direction: column; gap: 2px; min-width: 0; }}
+  .kpi-label {{ font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); font-weight: 700; }}
+  .kpi-value {{ font-family: 'Archivo', sans-serif; font-size: 1.9rem; font-weight: 800; line-height: 1.05; }}
+  .kpi.k-critical .kpi-value {{ color: var(--critical); font-size: 2rem; font-weight: 900; animation: critical-pulse 1.8s ease-in-out infinite; }}
   @keyframes critical-pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: .55; }} }}
   @media (prefers-reduced-motion: reduce) {{ .kpi.k-critical .kpi-value {{ animation: none; }} }}
   .kpi-label-row {{ display: flex; align-items: center; gap: 7px; }}
@@ -517,22 +517,22 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .kpi-detail {{ display: none; font-size: 0.78rem; color: var(--text-3); margin-top: 4px; white-space: normal; }}
   .kpi-detail.expanded {{ display: block; }}
 
-  .main-grid {{ display: grid; grid-template-columns: 1fr 400px; gap: 24px; align-items: start; }}
+  .main-grid {{ display: grid; grid-template-columns: 1fr 330px; gap: 14px; align-items: start; }}
   @media (max-width: 1100px) {{ .main-grid {{ grid-template-columns: 1fr; }} }}
 
-  .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }}
-  .card-title {{ font-size: 1.05rem; font-weight: 700; padding: 19px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }}
-  .card + .card {{ margin-top: 24px; }}
+  .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }}
+  .card-title {{ font-size: 0.95rem; font-weight: 700; padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }}
+  .card + .card {{ margin-top: 14px; }}
 
   .flash {{
     background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent);
     border-radius: 10px; padding: 12px 18px; margin-bottom: 20px; font-weight: 600; font-size: 0.95rem;
   }}
 
-  .add-site {{ display: flex; gap: 10px; padding: 20px 22px; flex-wrap: wrap; align-items: center; }}
+  .add-site {{ display: flex; gap: 8px; padding: 14px 16px; flex-wrap: wrap; align-items: center; }}
   .add-site-input {{
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 9px 14px; font-size: 0.92rem; color: var(--text); font-family: 'Manrope', sans-serif;
+    padding: 8px 12px; font-size: 0.88rem; color: var(--text); font-family: 'Manrope', sans-serif;
   }}
   .add-site-input:first-of-type {{ flex: 1; min-width: 220px; }}
   .add-site-name {{ width: 170px; }}
@@ -545,8 +545,8 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .add-site-btn:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
   .add-site-hint {{ padding: 20px 22px; color: var(--text-3); font-size: 0.85rem; }}
 
-  .site-names {{ list-style: none; margin: 0; padding: 6px 0; }}
-  .site-names li {{ padding: 13px 22px; border-bottom: 1px solid var(--border); font-size: 1rem; }}
+  .site-names {{ list-style: none; margin: 0; padding: 4px 0; }}
+  .site-names li {{ padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }}
   .site-names li:last-child {{ border-bottom: none; }}
   .site-names a {{ color: var(--text); text-decoration: none; font-weight: 600; }}
   .site-names a:hover {{ color: var(--accent); }}
@@ -565,19 +565,19 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .acct-btn:hover {{ filter: brightness(1.08); }}
   .acct-btn-danger {{ background: var(--critical); border-color: var(--critical); }}
   .sidebar-user {{
-    margin-top: auto; padding: 14px 12px 4px; border-top: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px; font-size: 0.92rem; color: var(--text-2);
+    margin-top: auto; padding: 10px 10px 2px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-2);
   }}
   .sidebar-user .avatar {{
-    width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff;
-    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;
+    width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; flex-shrink: 0;
   }}
   .sidebar-user .uname {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 
-  .table-filters {{ display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }}
+  .table-filters {{ display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }}
   .search-input {{
-    flex: 1; min-width: 200px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 9px 14px; font-size: 0.92rem; color: var(--text); font-family: 'Manrope', sans-serif;
+    flex: 1; min-width: 180px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; font-size: 0.88rem; color: var(--text); font-family: 'Manrope', sans-serif;
   }}
   .search-input::placeholder {{ color: var(--text-3); }}
   .search-input:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 1px; }}
@@ -590,14 +590,14 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .filter-chip.active {{ background: var(--accent); border-color: var(--accent); color: #06231f; }}
   .filter-chip:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 1px; }}
 
-  .table-wrap {{ overflow: auto; max-height: 720px; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.98rem; }}
-  th {{ text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 700; padding: 13px 22px; border-bottom: 1px solid var(--border); background: var(--surface-2); white-space: nowrap; position: sticky; top: 0; z-index: 1; }}
+  .table-wrap {{ overflow: auto; max-height: 620px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 0.88rem; }}
+  th {{ text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); font-weight: 700; padding: 9px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); white-space: nowrap; position: sticky; top: 0; z-index: 1; }}
   th.sortable {{ cursor: pointer; user-select: none; }}
   th.sortable:hover {{ color: var(--text); }}
   th .sort-arrow {{ margin-left: 5px; opacity: .5; }}
   th.sort-active .sort-arrow {{ opacity: 1; color: var(--accent); }}
-  td {{ padding: 16px 22px; border-bottom: 1px solid var(--border); vertical-align: top; }}
+  td {{ padding: 8px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }}
   th.num, td.num {{ text-align: right; }}
   tr:last-child td {{ border-bottom: none; }}
   .site-row {{ cursor: pointer; transition: box-shadow .15s ease; }}
@@ -622,19 +622,19 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   @media (prefers-reduced-motion: reduce) {{ .site-row.row-enter {{ animation: none; }} }}
   .site-row.selected td {{ background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }}
   .site-row:focus-visible {{ outline: 2px solid var(--accent); outline-offset: -2px; }}
-  .site-link {{ color: var(--text); text-decoration: none; font-weight: 600; font-size: 1.02rem; }}
+  .site-link {{ color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.9rem; }}
   .site-link:hover {{ color: var(--accent); }}
-  .site-url {{ font-size: 0.8rem; color: var(--text-3); font-family: 'JetBrains Mono', monospace; margin-top: 3px; }}
+  .site-url {{ font-size: 0.72rem; color: var(--text-3); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }}
   .rt-good {{ color: var(--good); }} .rt-warn {{ color: var(--warning); }} .rt-bad {{ color: var(--critical); font-weight: 700; }}
   .uptime-nodata {{ color: var(--text-3); font-style: italic; cursor: help; }}
 
-  .table-footer {{ display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface-2); gap: 12px; flex-wrap: wrap; }}
+  .table-footer {{ display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; border-top: 1px solid var(--border); background: var(--surface-2); gap: 12px; flex-wrap: wrap; }}
   .page-btn {{ border: 1px solid var(--border); background: var(--surface); color: var(--text-2); padding: 7px 14px; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }}
   .page-btn:hover:not(:disabled) {{ border-color: var(--accent); color: var(--accent); }}
   .page-btn:disabled {{ opacity: .4; cursor: default; }}
 
-  .pill {{ display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 100px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }}
-  .pill-icon {{ width: 13px; height: 13px; display: inline-flex; flex-shrink: 0; }}
+  .pill {{ display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }}
+  .pill-icon {{ width: 11px; height: 11px; display: inline-flex; flex-shrink: 0; }}
   .pill-good {{ background: var(--good-soft); color: var(--good); }}
   .pill-warning {{ background: var(--warning-soft); color: var(--warning); }}
   .pill-critical {{ background: var(--critical-soft); color: var(--critical); }}
@@ -644,34 +644,34 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
      a genuine neutral fact (like "no data yet") -- no filled background. */
   .pill-muted {{ background: none; border: 1px solid var(--border); color: var(--text-3); }}
 
-  .group-label {{ font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-weight: 700; padding: 16px 22px 6px; display: flex; align-items: center; gap: 7px; }}
+  .group-label {{ font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 700; padding: 10px 16px 4px; display: flex; align-items: center; gap: 6px; }}
   .group-dot {{ width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }}
   .group-dot.dot-good {{ background: var(--good); }}
   .group-dot.dot-warning {{ background: var(--warning); }}
   .group-dot.dot-critical {{ background: var(--critical); }}
   .group-dot.dot-neutral, .group-dot.dot-muted {{ background: var(--neutral); }}
-  .group-block:first-child .group-label {{ padding-top: 18px; }}
-  .health-row {{ display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 22px; border-bottom: 1px solid var(--border); font-size: 0.98rem; }}
+  .group-block:first-child .group-label {{ padding-top: 12px; }}
+  .health-row {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 0.88rem; }}
   .group-block:last-child .health-row:last-child {{ border-bottom: none; }}
   .health-row span:first-child {{ color: var(--text-2); font-weight: 500; flex-shrink: 0; }}
   .health-row .pill {{ flex-shrink: 0; cursor: default; }}
-  .health-empty {{ padding: 24px 22px; color: var(--text-3); }}
+  .health-empty {{ padding: 16px; color: var(--text-3); font-size: 0.88rem; }}
 
   .alert-list {{ list-style: none; margin: 0; padding: 0; max-height: 620px; overflow-y: auto; }}
-  .alert-item {{ padding: 18px 22px; border-bottom: 1px solid var(--border); border-left: 4px solid transparent; }}
+  .alert-item {{ padding: 11px 16px; border-bottom: 1px solid var(--border); border-left: 4px solid transparent; }}
   .alert-item:last-child {{ border-bottom: none; }}
   .alert-critical {{ border-left-color: var(--critical); }} .alert-warning {{ border-left-color: var(--warning); }} .alert-good {{ border-left-color: var(--good); }} .alert-neutral {{ border-left-color: var(--neutral); }}
-  .alert-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
-  .alert-site {{ font-weight: 700; font-size: 1rem; margin-bottom: 3px; }}
-  .alert-msg {{ font-size: 0.9rem; color: var(--text-2); line-height: 1.45; }}
-  .empty-state {{ padding: 40px 22px; text-align: center; color: var(--text-3); }}
+  .alert-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }}
+  .alert-site {{ font-weight: 700; font-size: 0.92rem; margin-bottom: 2px; }}
+  .alert-msg {{ font-size: 0.83rem; color: var(--text-2); line-height: 1.4; }}
+  .empty-state {{ padding: 28px 16px; text-align: center; color: var(--text-3); }}
 
-  .setting-row {{ display: flex; justify-content: space-between; gap: 24px; padding: 16px 22px; border-bottom: 1px solid var(--border); font-size: 0.98rem; }}
+  .setting-row {{ display: flex; justify-content: space-between; gap: 20px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }}
   .setting-row:last-child {{ border-bottom: none; }}
   .setting-row span:first-child {{ color: var(--text-2); font-weight: 500; }}
   .setting-val {{ text-align: right; color: var(--text); }}
 
-  footer.foot {{ margin-top: 28px; text-align: center; color: var(--text-3); font-size: 0.72rem; opacity: .8; }}
+  footer.foot {{ margin-top: 20px; text-align: center; color: var(--text-3); font-size: 0.7rem; opacity: .8; }}
 </style>
 </head>
 <body>
@@ -752,7 +752,7 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
 
         <section class="card">
           <h2 class="card-title"><span>Website Health</span></h2>
-          <div class="muted mono" style="padding: 0 22px 4px;" id="health-url">—</div>
+          <div class="muted mono" style="padding: 0 16px 4px; font-size: 0.78rem;" id="health-url">—</div>
           <div id="health-body"></div>
         </section>
       </div>
