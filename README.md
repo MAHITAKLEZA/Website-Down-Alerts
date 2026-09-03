@@ -126,7 +126,7 @@ only) — useful for CI or a scheduled task.
 
 | Task | Runs | Command |
 |---|---|---|
-| `WebsiteMonitor-DailyReport` | daily **09:30** | `daily_report.py` — checks every site, then posts the Teams group card |
+| `WebsiteMonitor-DailyReport` | **Mon–Fri 09:30** | `daily_report.py` — checks every site, then posts the Teams group card (no card Sat/Sun; `DAILY_REPORT_WEEKENDS=1` to send anyway) |
 | `WebsiteMonitor-FullCrawl` | daily 03:00 | `run_full_crawl.py` — broken-link crawl (`alerts.log` only) |
 
 **Monitoring runs once a day**, inside `daily_report.py` right before the card
@@ -162,9 +162,9 @@ The account + sessions live in `monitoring.db` (see
 
 ## Alert cadence
 
-The scheduled check runs **once a day** at 09:30 (inside `daily_report.py`).
-The live dashboard also re-checks every site whenever it's opened, and
-`website_monitor.py --interval N` polls every N seconds if you run it.
+The scheduled check runs **once a day on weekdays** at 09:30 (inside
+`daily_report.py`). The live dashboard also re-checks every site whenever it's
+opened, and `website_monitor.py --interval N` polls every N seconds if you run it.
 
 Alert behaviour (console + `alerts.log`):
 
@@ -199,8 +199,8 @@ python daily_report.py                                    # send the daily group
 
 `daily_report.py` runs a fresh check and posts **one card** to
 `TEAMS_DAILY_WEBHOOK_URL` — the down sites, or "✅ all sites up". It's
-scheduled **daily at 09:30** (`WebsiteMonitor-DailyReport`); run it manually
-any time too.
+scheduled **Mon–Fri at 09:30** (`WebsiteMonitor-DailyReport`) and skips
+weekends; run it manually any time (weekend runs need `DAILY_REPORT_WEEKENDS=1`).
 
 **Making the DM webhook** (Teams → Apps → **Workflows** → New):
 

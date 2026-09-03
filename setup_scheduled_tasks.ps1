@@ -1,10 +1,11 @@
 <#
     Registers Scheduled Tasks so monitoring runs automatically:
 
-      WebsiteMonitor-DailyReport  daily at 09:30  -> daily_report.py
+      WebsiteMonitor-DailyReport  Mon-Fri 09:30   -> daily_report.py
                                                     (checks every site, then
                                                      posts the Teams group card;
-                                                     needs TEAMS_DAILY_WEBHOOK_URL)
+                                                     needs TEAMS_DAILY_WEBHOOK_URL;
+                                                     no card on Sat/Sun)
       WebsiteMonitor-FullCrawl    daily at 03:00  -> run_full_crawl.py
                                                     (broken-link crawl; alerts.log only)
 
@@ -47,12 +48,13 @@ if (Get-ScheduledTask -TaskName "WebsiteMonitor-Fast" -ErrorAction SilentlyConti
     Write-Host "Removed WebsiteMonitor-Fast (no more hourly checks)"
 }
 
-# --- Daily report to the Teams group chat: checks every site, then posts. 09:30 ---
+# --- Daily report to the Teams group chat: checks every site, then posts. Mon-Fri 09:30 ---
+# (daily_report.py also skips weekends itself, so a catch-up run on Sat/Sun stays quiet.)
 $dailyAction  = New-ScheduledTaskAction -Execute $python -Argument "daily_report.py" -WorkingDirectory $dir
-$dailyTrigger = New-ScheduledTaskTrigger -Daily -At 9:30am
+$dailyTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 9:30am
 Register-ScheduledTask -TaskName $daily -Action $dailyAction -Trigger $dailyTrigger `
     -Principal $principal -Settings $settings -Force | Out-Null
-Write-Host "Registered $daily (daily 09:30 -- checks then posts the card)"
+Write-Host "Registered $daily (Mon-Fri 09:30 -- checks then posts the card)"
 
 # --- Full crawl: daily at 03:00 ---
 $fullAction  = New-ScheduledTaskAction -Execute $python -Argument "run_full_crawl.py" -WorkingDirectory $dir
