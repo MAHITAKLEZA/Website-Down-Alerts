@@ -120,15 +120,18 @@ only) — useful for CI or a scheduled task.
 ## Automate it (Windows)
 
 ```powershell
-.\setup_scheduled_tasks.ps1          # register the 3 scheduled tasks
+.\setup_scheduled_tasks.ps1          # register the scheduled tasks
 .\setup_scheduled_tasks.ps1 -Remove  # delete them
 ```
 
 | Task | Runs | Command |
 |---|---|---|
-| `WebsiteMonitor-Fast` | every 1 hour | `run_fast_checks.py` |
-| `WebsiteMonitor-FullCrawl` | daily 03:00 | `run_full_crawl.py` |
-| `WebsiteMonitor-DailyReport` | daily 09:30 | `daily_report.py` (Teams group card) |
+| `WebsiteMonitor-DailyReport` | daily **09:30** | `daily_report.py` — checks every site, then posts the Teams group card |
+| `WebsiteMonitor-FullCrawl` | daily 03:00 | `run_full_crawl.py` — broken-link crawl (`alerts.log` only) |
+
+**Monitoring runs once a day**, inside `daily_report.py` right before the card
+— there is no hourly check. Want fresher data on demand? Open the live
+dashboard (it re-checks every site on load) or run `python run_fast_checks.py`.
 
 ## Live dashboard & login
 
@@ -159,18 +162,16 @@ The account + sessions live in `monitoring.db` (see
 
 ## Alert cadence
 
-Checks run hourly (`WebsiteMonitor-Fast`, or `website_monitor.py --interval`);
-the live dashboard also re-checks every site each time it's loaded / auto-
-refreshed (once an hour).
+The scheduled check runs **once a day** at 09:30 (inside `daily_report.py`).
+The live dashboard also re-checks every site whenever it's opened, and
+`website_monitor.py --interval N` polls every N seconds if you run it.
 
-Alert behaviour:
+Alert behaviour (console + `alerts.log`):
 
 - a site alerts **as soon as one check returns DOWN** — including "overloaded"
-  (429/503/slow). Set `DOWN_CONFIRM_CHECKS=2` to require two DOWN checks in a
-  row first (only useful if you also make checks more frequent).
-- while it stays down, the alert **repeats every hour** so an ongoing outage
-  doesn't go quiet — tune with `DOWN_REALERT_SECONDS` (`1800` = 30 min, `0` =
-  alert once).
+  (429/503/slow). `DOWN_CONFIRM_CHECKS=2` requires two DOWN checks in a row.
+- while it stays down the alert repeats every `DOWN_REALERT_SECONDS` (default
+  3600; `0` = alert once).
 - a recovery notice follows when the site comes back UP.
 
 SSL-expiry, broken-link and structure-change checks still run, but their
