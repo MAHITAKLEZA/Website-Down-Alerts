@@ -170,10 +170,6 @@ def _short_reason(message: str, limit: int = 120) -> str:
     return reason + still_down
 
 
-def _broken_pages_summary(count: int) -> str:
-    return f"{count} broken link{'s' if count != 1 else ''}"
-
-
 class TeamsNotifier:
     """Posts to a Teams Workflows webhook (channel or 1:1 chat). Per-site
     alerts are NOT sent here -- Teams gets a single combined 'N sites down'
@@ -226,32 +222,19 @@ class TeamsNotifier:
         }
 
     @staticmethod
-    def _build_report_card(
-        down_sites: list[tuple[str, str]],
-        broken_pages: list[tuple[str, int]],
-        as_of: str,
-    ) -> dict:
-        """Daily status card -- always has content, even when nothing is down.
-
-        down_sites: (site_name, reason) for sites whose homepage check failed.
-        broken_pages: (site_name, count) of top-level pages returning 404 for
-        sites whose homepage is fine but a full link crawl found broken pages."""
+    def _build_report_card(down_sites: list[tuple[str, str]], as_of: str) -> dict:
+        """Daily status card -- always has content, even when nothing is down."""
         n = len(down_sites)
-        b = len(broken_pages)
-        body: list[dict] = []
-
-        if n == 0 and b == 0:
-            body.append({"type": "TextBlock", "size": "Large", "weight": "Bolder", "color": "good",
-                         "text": "✅ Daily report — all sites up", "wrap": True})
+        if n == 0:
+            body = [{"type": "TextBlock", "size": "Large", "weight": "Bolder", "color": "good",
+                     "text": "✅ Daily report — all sites up", "wrap": True}]
         else:
-            total = n + b
-            body.append({"type": "TextBlock", "size": "Large", "weight": "Bolder", "color": "attention",
-                         "text": f"\U0001f534 Daily report — {total} site{'s' if total != 1 else ''} down",
-                         "wrap": True})
-            facts = [{"title": name, "value": _short_reason(reason)} for name, reason in down_sites]
-            facts += [{"title": name, "value": _broken_pages_summary(count)} for name, count in broken_pages]
-            body.append({"type": "FactSet", "facts": facts})
-
+            body = [
+                {"type": "TextBlock", "size": "Large", "weight": "Bolder", "color": "attention",
+                 "text": f"\U0001f534 Daily report — {n} site{'s' if n != 1 else ''} down", "wrap": True},
+                {"type": "FactSet",
+                 "facts": [{"title": name, "value": _short_reason(reason)} for name, reason in down_sites]},
+            ]
         body.append({"type": "TextBlock", "size": "Small", "isSubtle": True, "wrap": True, "text": f"As of {as_of}"})
         return {
             "type": "message",
@@ -281,14 +264,9 @@ class TeamsNotifier:
             return False
         return await self._post(self._build_digest_card(down_sites, checked_at, new_count))
 
-    async def post_daily_report(
-        self,
-        down_sites: list[tuple[str, str]],
-        as_of: str,
-        broken_pages: list[tuple[str, int]] | None = None,
-    ) -> bool:
+    async def post_daily_report(self, down_sites: list[tuple[str, str]], as_of: str) -> bool:
         """One daily status card -- sent unconditionally (used by daily_report.py)."""
-        return await self._post(self._build_report_card(down_sites, broken_pages or [], as_of), tag="DAILY")
+        return await self._post(self._build_report_card(down_sites, as_of), tag="DAILY")
 
 
 class CompositeNotifier:

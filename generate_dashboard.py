@@ -183,7 +183,10 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
     user is the signed-in account row (Settings tab shows its details)."""
     sites = data["sites"]
     total = len(sites)
-    critical = sum(1 for s in sites if s["status"] == "DOWN")
+    # A site counts as down either because its own availability check failed,
+    # or because the last full link crawl found broken pages on it -- both
+    # are real problems visitors can hit, so both show up as DOWN here.
+    critical = sum(1 for s in sites if s["status"] == "DOWN" or data["broken_by_site"].get(s["id"]))
     healthy = total - critical  # everything that isn't confirmed down/overloaded
 
     open_alerts = data["open_outage_alerts"]
@@ -200,14 +203,19 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
     default_id = None
     status_order = {"DOWN": 0, "UNCERTAIN": 1, "UP": 2}
     for s in sites:
-        css_class, label, icon_key = STATUS_META.get(s["status"] or "UNCERTAIN", ("neutral", "UNKNOWN", "warning"))
-        status_sort = status_order.get(s["status"], 3)
+        broken = data["broken_by_site"].get(s["id"])
+        # A broken sub-page counts the same as the homepage being down for
+        # the overall badge/sort/count -- but the "Availability" row below
+        # still shows the real check result, so the two facts don't blur.
+        overall_status = "DOWN" if (s["status"] == "DOWN" or broken) else (s["status"] or "UNCERTAIN")
+        css_class, label, icon_key = STATUS_META.get(overall_status, ("neutral", "UNKNOWN", "warning"))
+        status_sort = status_order.get(overall_status, 3)
+        avail_css_class, avail_label, _ = STATUS_META.get(s["status"] or "UNCERTAIN", ("neutral", "UNKNOWN", "warning"))
         up_count, down_count = data["uptime_by_site"].get(s["id"], (0, 0))
         confirmed_total = up_count + down_count
         uptime_pct = f"{(up_count / confirmed_total * 100):.0f}%" if confirmed_total else None
         uptime_sort = (up_count / confirmed_total * 100) if confirmed_total else -1
 
-        broken = data["broken_by_site"].get(s["id"])
         code = s["status_code"]
         has_real_code = code is not None and code != 0
 
@@ -242,7 +250,7 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
         not_tracked_tip = "This checker doesn't run a browser, so it can't observe this."
         rows = [
             ("Availability & uptime", [
-                ["Availability", css_class, label, (s["reason"] or None) if css_class != "good" else None],
+                ["Availability", avail_css_class, avail_label, (s["reason"] or None) if avail_css_class != "good" else None],
                 ["Uptime", "neutral", uptime_pct if uptime_pct else "No data yet",
                  None if uptime_pct else "No confirmed up/down check yet -- excludes uncertain results."],
             ]),
@@ -256,9 +264,9 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
                 ["Page structure", "neutral" if s["id"] in data["recent_change_sites"] else "good",
                  "Changed" if s["id"] in data["recent_change_sites"] else "Stable",
                  "Changed within the last 24 hours" if s["id"] in data["recent_change_sites"] else None],
-                # Broken links are a content issue, not an outage -- shown as a
-                # neutral count, never red, and never affect the site's status.
-                ["Broken links", "neutral" if broken else "good",
+                # Broken links count as a site-down condition (see overall_status
+                # above), so this row is red too when there are any.
+                ["Broken links", "critical" if broken else "good",
                  f"{broken} broken" if broken else "0", None],
                 ["Page rendering", "muted", "Not monitored", not_tracked_tip],
                 ["Console errors", "muted", "Not monitored", not_tracked_tip],
@@ -305,10 +313,16 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
           <div class="alert-msg">{escape(a['message'])}</div>
         </li>""")
 
-    priority = [s for s in sites if s["status"] == "DOWN"]
+    def _priority_reason(s) -> str:
+        if s["status"] == "DOWN":
+            return s["reason"] or "—"
+        broken = data["broken_by_site"].get(s["id"])
+        return f"{broken} broken link{'s' if broken != 1 else ''}"
+
+    priority = [s for s in sites if s["status"] == "DOWN" or data["broken_by_site"].get(s["id"])]
     report_rows = "".join(
         f"""<tr><td>{escape(s['name'])}</td><td class="mono">{escape(s['url'])}</td>
-            <td>{escape(s['reason'] or '—')[:90]}</td></tr>"""
+            <td>{escape(_priority_reason(s))[:90]}</td></tr>"""
         for s in priority
     ) or '<tr><td colspan="3" class="muted" style="padding:16px;">No sites currently down.</td></tr>'
 
