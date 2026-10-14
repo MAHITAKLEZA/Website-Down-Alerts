@@ -10,7 +10,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from datetime import datetime, timezone
 
@@ -18,6 +17,7 @@ from crawl4ai import AsyncWebCrawler
 
 from monitoring import alert_engine, db
 from monitoring.change_detection import detect_changes
+from monitoring.notifiers import get_teams_webhook
 from monitoring.page_analysis import analyze_page
 from monitoring.sites import load_sites
 from website_monitor import check_url_full, make_http_strategy
@@ -70,10 +70,10 @@ async def run_pass(conn) -> None:
 
 
 async def main() -> None:
-    if not (os.environ.get("TEAMS_WEBHOOK_URL") or os.environ.get("TEAMS_DM_WEBHOOK_URL")):
+    if not get_teams_webhook():
         print(
-            "[TEAMS] neither TEAMS_WEBHOOK_URL nor TEAMS_DM_WEBHOOK_URL is set in this "
-            "shell -- no Teams card will be sent (open a NEW terminal after `setx`).",
+            "[TEAMS] no Teams webhook saved in Settings or set in this shell "
+            "-- no Teams card will be sent.",
             file=sys.stderr,
         )
 

@@ -14,6 +14,7 @@ import sqlite3
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import urlparse
 
 DB_PATH = Path(__file__).resolve().parent / "monitoring.db"
 OUT_PATH = Path(__file__).resolve().parent / "dashboard.html"
@@ -85,6 +86,16 @@ def fetch_data(conn: sqlite3.Connection) -> dict:
         ).fetchall()
     }
 
+    # Latest security scan (run_security_checks.py) per site, with its findings.
+    security_by_site = {}
+    for r in conn.execute(
+        "SELECT id, site_id, run_at FROM security_runs WHERE id IN (SELECT MAX(id) FROM security_runs GROUP BY site_id)"
+    ).fetchall():
+        findings = conn.execute(
+            "SELECT category, severity, title, detail FROM security_findings WHERE run_id = ? ORDER BY id", (r["id"],)
+        ).fetchall()
+        security_by_site[r["site_id"]] = {"run_at": r["run_at"], "findings": [dict(f) for f in findings]}
+
     # Has this site had a structure change flagged in the last 24h?
     recent_change_sites = {
         r["site_id"]
@@ -132,6 +143,7 @@ def fetch_data(conn: sqlite3.Connection) -> dict:
         "sites": sites,
         "uptime_by_site": uptime_by_site,
         "broken_by_site": broken_by_site,
+        "security_by_site": security_by_site,
         "recent_change_sites": recent_change_sites,
         "alerts": alerts,
         "open_outage_alerts": open_outage_alerts,
@@ -177,7 +189,60 @@ ICONS = {
 }
 
 
-def render(data: dict, live: bool = False, flash: str | None = None, user=None) -> str:
+SECURITY_CATEGORIES = [
+    ("headers", "Security headers"),
+    ("exposed_files", "Exposed files"),
+    ("malware", "Malware indicators"),
+    ("vulnerability", "Vulnerabilities"),
+    ("domain", "Domain expiry"),
+    ("reputation", "Reputation (Safe Browsing)"),
+]
+_SEV_STATE = {"high": "critical", "medium": "warning", "low": "neutral"}
+
+
+def security_summary(sec: dict | None):
+    """(pill_state, pill_text, sort_order, health_panel_group) for one site's latest scan."""
+    if sec is None:
+        group = ("Security scan", [["Status", "muted", "Not scanned yet", "Run run_security_checks.py"]])
+        return "muted", "Not scanned", 9, group
+    findings = sec["findings"]
+    counts = {sev: sum(1 for f in findings if f["severity"] == sev) for sev in ("high", "medium", "low")}
+    if counts["high"]:
+        state, text, order = "critical", f"{counts['high']} high", 0
+    elif counts["medium"]:
+        state, text, order = "warning", f"{counts['medium']} medium", 1
+    elif counts["low"]:
+        state, text, order = "neutral", f"{counts['low']} low", 2
+    else:
+        state, text, order = "good", "Clean", 3
+
+    rows = []
+    for key, label in SECURITY_CATEGORIES:
+        mine = [f for f in findings if f["category"] == key]
+        if not mine:
+            rows.append([label, "good", "OK", None])
+            continue
+        worst = min(mine, key=lambda f: ("high", "medium", "low").index(f["severity"]))["severity"]
+        # Titles/details come from scanned pages -- escape before they reach innerHTML.
+        tip = " | ".join(escape(f"{f['title']}: {f['detail']}" if f["detail"] else f["title"]) for f in mine)
+        rows.append([label, _SEV_STATE[worst], f"{len(mine)} issue{'s' if len(mine) != 1 else ''}", tip])
+    return state, text, order, ("Security scan", rows)
+
+
+WEBHOOK_SETTINGS = [
+    ("TEAMS_WEBHOOK_URL", "Teams webhook",
+     "Sent here: an alert when a site goes down (checked every 30 min), and a daily 09:30 report while "
+     "any site is still down. Saving also updates the GitHub secret so the cloud monitor uses it."),
+]
+
+
+def mask_url(url: str) -> str:
+    """Show just enough of a webhook URL to recognise it -- it's a secret."""
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}/…{url[-6:]}" if parsed.netloc else "…" + url[-6:]
+
+
+def render(data: dict, live: bool = False, flash: str | None = None, user=None, webhooks=None) -> str:
     """live=True enables the in-page "add a site" form (needs serve_dashboard.py
     running to handle the POST); flash is a one-line banner shown at the top;
     user is the signed-in account row (Settings tab shows its details)."""
@@ -216,6 +281,7 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
         uptime_pct = f"{(up_count / confirmed_total * 100):.0f}%" if confirmed_total else None
         uptime_sort = (up_count / confirmed_total * 100) if confirmed_total else -1
 
+        sec_state, sec_text, sec_order, sec_group = security_summary(data["security_by_site"].get(s["id"]))
         code = s["status_code"]
         has_real_code = code is not None and code != 0
 
@@ -278,14 +344,16 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
         if has_real_code:
             rows[0][1].insert(1, ["HTTP status", "good" if code == 200 else "critical", str(code), None])
 
+        rows.insert(2, sec_group)  # right after the existing SSL/"Security" group
         site_details[s["id"]] = {"name": s["name"], "url": s["url"], "groups": rows}
 
         site_rows.append(f"""
         <tr class="site-row" data-site-id="{s['id']}" data-status="{css_class}" tabindex="0"
-            data-statusorder="{status_sort}" data-rtt="{rtt_sort}" data-uptime="{uptime_sort}" data-lastcheck="{epoch_or(s['run_at'])}">
+            data-statusorder="{status_sort}" data-secorder="{sec_order}" data-rtt="{rtt_sort}" data-uptime="{uptime_sort}" data-lastcheck="{epoch_or(s['run_at'])}">
           <td><a class="site-link" href="{escape(s['url'])}" target="_blank" rel="noopener" onclick="event.stopPropagation()">{escape(s['name'])}</a>
               <div class="site-url">{escape(s['url'].replace('https://', '').replace('http://', ''))}</div></td>
           <td><span class="pill pill-{css_class}"><i class="pill-icon">{ICONS[icon_key]}</i>{label}</span></td>
+          <td><span class="pill pill-{sec_state}">{sec_text}</span></td>
           <td class="mono num {rtt_class}">{rtt_html}</td>
           <td class="muted last-check" data-epoch="{epoch_or(s['run_at'])}">{fmt_ago(s['run_at'])}</td>
           <td class="{uptime_cell_class}"{uptime_tip_attr}>{uptime_display}</td>
@@ -330,6 +398,37 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
     def _acct_row(label: str, value: str) -> str:
         return f'<div class="setting-row"><span>{escape(label)}</span><span class="setting-val">{escape(value)}</span></div>'
 
+    # Teams webhooks card (live server only). webhooks maps each env-var key to
+    # (saved_value_or_None, env_value_or_None).
+    webhook_rows = []
+    for key, label, hint in WEBHOOK_SETTINGS:
+        saved, from_env = (webhooks or {}).get(key, (None, None))
+        if saved:
+            status = f'Saved: <span class="mono">{escape(mask_url(saved))}</span>'
+        elif from_env:
+            status = f'Using environment variable: <span class="mono">{escape(mask_url(from_env))}</span>'
+        else:
+            status = "Not set"
+        remove = (
+            f'<button type="submit" name="action" value="remove" class="acct-btn acct-btn-danger" '
+            f'formnovalidate>Remove</button>' if saved else ""
+        )
+        webhook_rows.append(f"""
+        <form class="acct-form webhook-form" method="post" action="/save-webhook">
+          <input type="hidden" name="key" value="{key}">
+          <label class="webhook-label">{escape(label)}</label>
+          <div class="webhook-hint">{escape(hint)}</div>
+          <div class="webhook-hint">{status}</div>
+          <input name="url" type="url" placeholder="https://...  (Teams Workflows webhook link)" autocomplete="off" required>
+          <div class="webhook-actions">
+            <button type="submit" name="action" value="save" class="acct-btn">Save</button>{remove}
+          </div>
+        </form>""")
+    webhooks_html = (
+        '<section class="card"><h2 class="card-title">Teams alerts</h2>' + "".join(webhook_rows) + "</section>"
+        if live else ""
+    )
+
     if user is not None:
         created = str(user["created_at"])[:10]
         account_rows = _acct_row("Email", user["email"]) + _acct_row("Member since", created)
@@ -346,6 +445,7 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
           <button type="submit" class="acct-btn">Update password</button>
         </form>
       </section>
+      {webhooks_html}
       <section class="card">
         <h2 class="card-title">Session</h2>
         <form method="post" action="/logout" style="padding:18px 22px;">
@@ -390,9 +490,22 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
             '<span class="mono">urls.txt</span>.</div>'
         )
 
-    # Just the names of every monitored site, for the Websites tab.
+    # Just the names of every monitored site, for the Websites tab (plus a
+    # delete button on the live server).
+    def _delete_btn(s) -> str:
+        if not live:
+            return ""
+        return (
+            '<form method="post" action="/delete-site" class="site-del" '
+            f'data-msg="Stop monitoring {escape(s["name"])} and delete its history?" '
+            'onsubmit="return confirm(this.dataset.msg)">'
+            f'<input type="hidden" name="url" value="{escape(s["url"])}">'
+            f'<button type="submit" class="site-del-btn" aria-label="Delete {escape(s["name"])}">Delete</button>'
+            '</form>'
+        )
+
     ws_rows = [
-        f'<li><a href="{escape(s["url"])}" target="_blank" rel="noopener">{escape(s["name"])}</a></li>'
+        f'<li><a href="{escape(s["url"])}" target="_blank" rel="noopener">{escape(s["name"])}</a>{_delete_btn(s)}</li>'
         for s in sites
     ]
     websites_list_html = "".join(ws_rows) or '<li class="empty-state">No sites yet.</li>'
@@ -560,7 +673,24 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
   .add-site-hint {{ padding: 20px 22px; color: var(--text-3); font-size: 0.85rem; }}
 
   .site-names {{ list-style: none; margin: 0; padding: 4px 0; }}
-  .site-names li {{ padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }}
+  .site-names li {{
+    padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }}
+  .site-names a {{ min-width: 0; overflow-wrap: anywhere; }}
+  .site-del {{ margin: 0; flex-shrink: 0; }}
+  .site-del-btn {{
+    border: 1px solid var(--border); background: transparent; color: var(--critical);
+    font-family: 'Manrope', sans-serif; font-size: 0.8rem; font-weight: 700;
+    padding: 4px 12px; border-radius: 6px; cursor: pointer;
+  }}
+  .site-del-btn:hover {{ border-color: var(--critical); background: var(--critical-soft); }}
+  .site-del-btn:focus-visible {{ outline: 2px solid var(--critical); outline-offset: 2px; }}
+  .webhook-form {{ max-width: 560px; border-bottom: 1px solid var(--border); }}
+  .webhook-form:last-child {{ border-bottom: none; }}
+  .webhook-label {{ font-weight: 700; font-size: 0.95rem; }}
+  .webhook-hint {{ color: var(--text-3); font-size: 0.85rem; margin-top: -6px; overflow-wrap: anywhere; }}
+  .webhook-actions {{ display: flex; gap: 8px; }}
   .site-names li:last-child {{ border-bottom: none; }}
   .site-names a {{ color: var(--text); text-decoration: none; font-weight: 600; }}
   .site-names a:hover {{ color: var(--accent); }}
@@ -747,12 +877,13 @@ def render(data: dict, live: bool = False, flash: str | None = None, user=None) 
               <thead><tr>
                 <th>Website</th>
                 <th class="sortable sort-active" data-sort="statusorder">Status<span class="sort-arrow">▲</span></th>
+                <th class="sortable" data-sort="secorder">Security<span class="sort-arrow">▲▼</span></th>
                 <th class="num sortable" data-sort="rtt">Response Time<span class="sort-arrow">▲▼</span></th>
                 <th class="sortable" data-sort="lastcheck">Last Check<span class="sort-arrow">▲▼</span></th>
                 <th class="num sortable" data-sort="uptime">Uptime<span class="sort-arrow">▲▼</span></th>
               </tr></thead>
-              <tbody id="site-tbody">{''.join(site_rows) if site_rows else '<tr><td colspan="5" class="empty-state">No sites configured yet. Add URLs to urls.txt to start monitoring.</td></tr>'}
-              <tr id="no-match-row" style="display:none;"><td colspan="5" class="empty-state">No sites match your search or filter.</td></tr></tbody>
+              <tbody id="site-tbody">{''.join(site_rows) if site_rows else '<tr><td colspan="6" class="empty-state">No sites configured yet. Add URLs to urls.txt to start monitoring.</td></tr>'}
+              <tr id="no-match-row" style="display:none;"><td colspan="6" class="empty-state">No sites match your search or filter.</td></tr></tbody>
             </table>
           </div>
           <div class="table-footer">

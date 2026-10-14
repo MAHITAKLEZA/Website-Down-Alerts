@@ -67,6 +67,26 @@ CREATE TABLE IF NOT EXISTS broken_links (
     reason TEXT
 );
 
+CREATE TABLE IF NOT EXISTS security_runs (
+    id INTEGER PRIMARY KEY,
+    site_id INTEGER NOT NULL REFERENCES sites(id),
+    run_at TEXT NOT NULL,
+    high_count INTEGER NOT NULL,
+    medium_count INTEGER NOT NULL,
+    low_count INTEGER NOT NULL,
+    baseline_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_security_runs_site ON security_runs(site_id, run_at DESC);
+
+CREATE TABLE IF NOT EXISTS security_findings (
+    id INTEGER PRIMARY KEY,
+    run_id INTEGER NOT NULL REFERENCES security_runs(id),
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT
+);
+
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY,
     site_id INTEGER NOT NULL REFERENCES sites(id),
@@ -94,6 +114,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Key/value settings edited from the dashboard's Settings tab (e.g. Teams
+-- webhook URLs, keyed by their env var name).
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -112,6 +139,43 @@ def get_or_create_site(conn: sqlite3.Connection, name: str, url: str) -> int:
     cur = conn.execute("INSERT INTO sites (name, url) VALUES (?, ?)", (name, url))
     conn.commit()
     return cur.lastrowid
+
+
+def delete_site(conn: sqlite3.Connection, url: str) -> bool:
+    """Remove a site and all of its history (checks, snapshots, alerts, ...).
+    Returns True if the site existed."""
+    row = conn.execute("SELECT id FROM sites WHERE url = ?", (url,)).fetchone()
+    if not row:
+        return False
+    site_id = row["id"]
+    conn.execute(
+        "DELETE FROM broken_links WHERE link_run_id IN (SELECT id FROM link_runs WHERE site_id = ?)", (site_id,)
+    )
+    conn.execute(
+        "DELETE FROM security_findings WHERE run_id IN (SELECT id FROM security_runs WHERE site_id = ?)", (site_id,)
+    )
+    for table in ("checks", "page_snapshots", "changes", "link_runs", "security_runs", "alerts"):
+        conn.execute(f"DELETE FROM {table} WHERE site_id = ?", (site_id,))
+    conn.execute("DELETE FROM sites WHERE id = ?", (site_id,))
+    conn.commit()
+    return True
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str | None) -> None:
+    """Store a setting; a None/empty value deletes it."""
+    if value:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+    else:
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+    conn.commit()
 
 
 def insert_check(conn: sqlite3.Connection, site_id: int, status) -> None:
@@ -249,3 +313,28 @@ def insert_broken_link(conn: sqlite3.Connection, link_run_id: int, url: str, sta
         (link_run_id, url, status_code, reason),
     )
     conn.commit()
+
+
+def insert_security_run(conn: sqlite3.Connection, site_id: int, run_at: str, findings, baseline_json: str) -> int:
+    counts = {"high": 0, "medium": 0, "low": 0}
+    for f in findings:
+        counts[f.severity] = counts.get(f.severity, 0) + 1
+    cur = conn.execute(
+        "INSERT INTO security_runs (site_id, run_at, high_count, medium_count, low_count, baseline_json) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (site_id, run_at, counts["high"], counts["medium"], counts["low"], baseline_json),
+    )
+    run_id = cur.lastrowid
+    conn.executemany(
+        "INSERT INTO security_findings (run_id, category, severity, title, detail) VALUES (?, ?, ?, ?, ?)",
+        [(run_id, f.category, f.severity, f.title, f.detail) for f in findings],
+    )
+    conn.commit()
+    return run_id
+
+
+def get_last_security_baseline(conn: sqlite3.Connection, site_id: int) -> str | None:
+    row = conn.execute(
+        "SELECT baseline_json FROM security_runs WHERE site_id = ? ORDER BY run_at DESC LIMIT 1", (site_id,)
+    ).fetchone()
+    return row["baseline_json"] if row else None

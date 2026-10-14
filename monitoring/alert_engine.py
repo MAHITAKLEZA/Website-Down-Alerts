@@ -29,8 +29,6 @@ from . import db
 from .change_detection import Change
 from .notifiers import get_notifier
 
-_notifier = get_notifier()
-
 # Remembers which down sites the last Teams digest card covered, so an
 # unchanged outage list isn't re-sent every pass.
 DIGEST_STATE_FILE = Path(__file__).resolve().parent.parent / ".digest_state.json"
@@ -74,7 +72,9 @@ def _fmt_duration(seconds: float) -> str:
 
 async def _fire(conn, site_id: int, site_name: str, alert_type: str, severity: str, message: str) -> None:
     alert = db.create_alert(conn, site_id, alert_type, severity, message, _now())
-    await _notifier.notify(site_name, alert)
+    # Resolved per alert (not once at import) so a webhook saved in the
+    # dashboard's Settings tab takes effect without a restart.
+    await get_notifier().notify(site_name, alert)
 
 
 def _load_digest_state() -> set[str]:
@@ -114,7 +114,7 @@ async def send_outage_digest(conn) -> None:
     checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     print(f"[TEAMS] sending digest: {len(current)} site(s) down, {len(new_sites)} new")
     rows = sorted(((r["name"], r["message"]) for r in outages), key=lambda x: (x[0] not in new_sites, x[0]))
-    sent = await _notifier.post_teams_digest(rows, checked_at, new_count=len(new_sites))
+    sent = await get_notifier().post_teams_digest(rows, checked_at, new_count=len(new_sites))
     # Only mark the new sites as notified if the card actually went out; on a
     # webhook failure keep them pending so the next pass retries.
     _save_digest_state(current if sent else (already_notified & current))
@@ -187,3 +187,23 @@ async def evaluate_broken_links(conn, site_id: int, site_name: str, broken_count
     # and this only goes to alerts.log (not Teams, not the dashboard).
     message = f"{broken_count} broken link(s) found across {pages_crawled} crawled pages"
     await _fire(conn, site_id, site_name, "broken_links", "warning", message)
+
+
+async def evaluate_security(conn, site_id: int, site_name: str, findings) -> None:
+    """One open 'security' alert per site while it has high-severity findings.
+    Console + alerts.log only (like broken links); never the Teams card."""
+    serious = [f for f in findings if f.severity == "high"]
+    open_alert = db.get_open_alert(conn, site_id, "security")
+
+    if not serious:
+        if open_alert:
+            db.resolve_alert(conn, open_alert["id"], _now())
+        return
+
+    message = f"SECURITY: {len(serious)} high-severity finding(s): " + "; ".join(f.title for f in serious[:3])
+    if open_alert and open_alert["message"] == message:
+        return
+    if open_alert:
+        db.resolve_alert(conn, open_alert["id"], _now())
+    # "warning" (not "high"): the console banner labels high/critical as "WEBSITE DOWN".
+    await _fire(conn, site_id, site_name, "security", "warning", message)

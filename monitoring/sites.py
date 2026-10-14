@@ -111,3 +111,37 @@ def add_site(url: str, name: str | None = None, path: Path = DEFAULT_URLS_FILE) 
     with open(path, "a", encoding="utf-8") as f:
         f.write(f"{sep}# {name}\n{clean}\n")
     return True, f"Added {name} ({clean}). It will appear after the next check."
+
+
+def remove_site(url: str, path: Path = DEFAULT_URLS_FILE) -> list[str]:
+    """Remove a URL from urls.txt, along with the "# Name" comment directly
+    above it. Removing a top-level site also removes its indented sections.
+    Returns every URL removed (empty if it wasn't in the file). Used by the
+    dashboard's delete button (serve_dashboard.py)."""
+    target = (url or "").strip().rstrip("/").lower()
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+    for i, raw_line in enumerate(lines):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        line_url, _ = _split_inline_comment(stripped)
+        if line_url.rstrip("/").lower() != target:
+            continue
+
+        removed = [line_url]
+        start, end = i, i + 1
+        if i > 0 and lines[i - 1].strip().startswith("#"):
+            start = i - 1  # its "# Name" label
+        if raw_line[:1] not in (" ", "\t"):
+            # Top-level site: its sections are the indented lines that follow.
+            while end < len(lines) and (not lines[end].strip() or lines[end][:1] in (" ", "\t")):
+                section = lines[end].strip()
+                if section and not section.startswith("#"):
+                    removed.append(_split_inline_comment(section)[0])
+                end += 1
+
+        path.write_text("".join(lines[:start] + lines[end:]), encoding="utf-8")
+        return removed
+
+    return []

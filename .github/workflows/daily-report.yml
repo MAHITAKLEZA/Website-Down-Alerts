@@ -1,0 +1,44 @@
+# Daily "sites still down" card -- runs on GitHub's servers every day
+# (weekends too) at 09:30 IST. Posts to TEAMS_WEBHOOK_URL ONLY when at least
+# one site is down; when everything is up, nothing is sent.
+#
+# Uses the same repository secret as monitor.yml: TEAMS_WEBHOOK_URL.
+
+name: Daily down report
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # 04:00 UTC = 09:30 IST
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: "3.12"
+
+      # Same cached virtualenv as monitor.yml.
+      - name: Restore virtualenv
+        id: venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        if: steps.venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Check sites and post the card if any are down
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          PYTHONIOENCODING: utf-8
+        run: .venv/bin/python daily_report.py

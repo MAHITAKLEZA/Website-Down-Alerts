@@ -1,15 +1,16 @@
-"""Alert delivery. Always logs to console + alerts.log; also posts to
-Microsoft Teams via one or both of these environment variables:
+"""Alert delivery. Always logs to console + alerts.log; also posts to ONE
+Microsoft Teams webhook that gets everything -- the "N sites down" alert
+card and the daily report (see get_teams_webhook). It comes from, in order:
 
-  TEAMS_WEBHOOK_URL       -> posts the alert card to a Teams *channel*
-  TEAMS_DM_WEBHOOK_URL    -> sends the same card as a 1:1 *chat* to one person
-  TEAMS_DAILY_WEBHOOK_URL -> target for the once-a-day status card (daily_report.py)
+  1. the webhook saved in the live dashboard's Settings tab (monitoring.db)
+  2. the TEAMS_WEBHOOK_URL environment variable
+  3. the older TEAMS_DAILY_WEBHOOK_URL environment variable
 
-Set any combination. TEAMS_WEBHOOK_URL / TEAMS_DM_WEBHOOK_URL get ONE combined
-"N sites down" card, and only when the down-site list has changed since the last
-card (see alert_engine.send_outage_digest). TEAMS_DAILY_WEBHOOK_URL instead gets
-one card every day at a scheduled time (even when all sites are up). Recovery,
-SSL, links and structure-change alerts stay on the console + alerts.log only.
+TEAMS_DM_WEBHOOK_URL (env only, optional) also gets a copy of the down alert
+as a 1:1 chat. The down-alert card is only sent when the down-site list has
+changed since the last card (see alert_engine.send_outage_digest); the daily
+report is sent every weekday. Recovery, SSL, links and structure-change alerts
+stay on the console + alerts.log only.
 
 Getting a channel webhook URL (Microsoft retired the old "Incoming Webhook"
 connector -- Teams now uses the Workflows app / Power Automate):
@@ -289,11 +290,36 @@ class CompositeNotifier:
         return sent
 
 
+def get_webhook_url(key: str) -> str | None:
+    """A webhook saved in the dashboard's Settings tab (monitoring.db) wins;
+    otherwise fall back to the environment variable of the same name."""
+    from . import db  # local import: db is only needed when resolving webhooks
+
+    try:
+        conn = db.get_connection()
+        try:
+            saved = db.get_setting(conn, key)
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - an unreadable db must not stop alerts
+        saved = None
+    return saved or os.environ.get(key) or None
+
+
+def get_teams_webhook() -> str | None:
+    """The ONE Teams webhook that gets everything -- down alerts and the daily
+    report. Saved in Settings, else TEAMS_WEBHOOK_URL, else the older
+    TEAMS_DAILY_WEBHOOK_URL env var."""
+    return get_webhook_url("TEAMS_WEBHOOK_URL") or os.environ.get("TEAMS_DAILY_WEBHOOK_URL") or None
+
+
 def get_notifier():
     notifiers = [ConsoleNotifier()]
-    # A channel post, a 1:1 DM, or both -- whichever webhook URLs are set.
-    for env_var in ("TEAMS_WEBHOOK_URL", "TEAMS_DM_WEBHOOK_URL"):
-        webhook_url = os.environ.get(env_var)
-        if webhook_url:
-            notifiers.append(TeamsNotifier(webhook_url))
+    webhook_url = get_teams_webhook()
+    if webhook_url:
+        notifiers.append(TeamsNotifier(webhook_url))
+    # Optional extra copy as a 1:1 DM (env var only).
+    dm_url = os.environ.get("TEAMS_DM_WEBHOOK_URL")
+    if dm_url and dm_url != webhook_url:
+        notifiers.append(TeamsNotifier(dm_url))
     return CompositeNotifier(notifiers)

@@ -1,0 +1,79 @@
+# Continuous monitoring in the cloud -- runs on GitHub's servers, so Teams
+# alerts keep going out even when the laptop is off.
+#
+# Every 30 minutes this does one run_fast_checks.py pass. When a site goes
+# DOWN, one "N sites down" card listing the down sites is posted to
+# TEAMS_WEBHOOK_URL. A site that stays down is not re-posted every run --
+# monitoring.db + .digest_state.json are carried between runs via the Actions
+# cache so the de-dup state survives. (daily-report.yml re-lists still-down
+# sites once a day.)
+#
+# Nothing is sent until the webhook is connected: repo -> Settings -> Secrets
+# and variables -> Actions -> New repository secret:
+#   TEAMS_WEBHOOK_URL = <Teams Workflows webhook link>
+#
+# Every 30 min keeps this within the 2,000 free Actions minutes/month of a
+# private repo (the venv is cached so each run is ~1 billed minute).
+# GitHub may start scheduled runs a few minutes late under load.
+
+name: Website monitor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes
+  workflow_dispatch:          # "Run workflow" button in the Actions tab
+
+concurrency:
+  group: website-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: "3.12"
+
+      # Reuse the installed packages between runs instead of reinstalling.
+      - name: Restore virtualenv
+        id: venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        if: steps.venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+
+      # Previous run's check history + "already notified" list.
+      - name: Restore monitor state
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            monitoring.db
+            .digest_state.json
+          key: monitor-state-${{ github.run_id }}
+          restore-keys: monitor-state-
+
+      - name: Run checks (posts to Teams if a site went down)
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          PYTHONIOENCODING: utf-8
+        run: .venv/bin/python run_fast_checks.py
+
+      - name: Save monitor state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            monitoring.db
+            .digest_state.json
+          key: monitor-state-${{ github.run_id }}

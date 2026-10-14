@@ -15,7 +15,9 @@ is created on startup from DASHBOARD_ADMIN_EMAIL / DASHBOARD_ADMIN_PASSWORD
 shows the account + a change-password form + sign out. See monitoring/auth.py.
 
 The Websites tab has an "add a site" box: type a URL, submit, and it's
-appended to urls.txt and picked up on the next pass.
+appended to urls.txt and picked up on the next pass. Each site also has a
+Delete button (removes it from urls.txt and its history from the db). The
+Settings tab can save/remove the Teams webhook URLs (stored in monitoring.db).
 
 Usage:
     python serve_dashboard.py [port]
@@ -25,6 +27,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -33,11 +38,12 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from auth_pages import render_login_page
-from generate_dashboard import fetch_data, render
+from generate_dashboard import WEBHOOK_SETTINGS, fetch_data, render
 from monitoring import auth, db, sites
 from run_fast_checks import run_pass
 
 DEFAULT_PORT = 8765
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SESSION_MAX_AGE = int(auth.SESSION_TTL.total_seconds())
 
 # Serializes check passes so two overlapping browser refreshes don't launch
@@ -50,9 +56,42 @@ async def _run_live_pass_and_render(user, flash: str | None) -> str:
     try:
         await run_pass(conn)
         data = fetch_data(conn)
-        return render(data, live=True, flash=flash, user=user)
+        # (saved in Settings, env fallback) -- same lookup order as get_teams_webhook().
+        env_url = os.environ.get("TEAMS_WEBHOOK_URL") or os.environ.get("TEAMS_DAILY_WEBHOOK_URL")
+        webhooks = {"TEAMS_WEBHOOK_URL": (db.get_setting(conn, "TEAMS_WEBHOOK_URL"), env_url)}
+        return render(data, live=True, flash=flash, user=user, webhooks=webhooks)
     finally:
         conn.close()
+
+
+def _find_gh() -> str | None:
+    return shutil.which("gh") or next(
+        (p for p in (r"C:\Program Files\GitHub CLI\gh.exe", r"C:\Program Files (x86)\GitHub CLI\gh.exe")
+         if os.path.exists(p)),
+        None,
+    )
+
+
+def _sync_github_secret(key: str, value: str | None) -> str:
+    """Mirror a webhook saved in Settings into the GitHub repo's Actions secret
+    of the same name, so the cloud monitor (.github/workflows/*.yml) uses it
+    too. Uses the GitHub CLI (`gh`), which must be installed and signed in
+    (`gh auth login`). Returns a short status for the flash message."""
+    gh = _find_gh()
+    if gh is None:
+        return ("Not sent to GitHub: install the GitHub CLI and run `gh auth login`, then save again "
+                "-- until then the cloud monitor can't use it.")
+    args = [gh, "secret", "set", key] if value else [gh, "secret", "delete", key]
+    try:
+        # The value goes over stdin, never on the command line.
+        proc = subprocess.run(args, input=value or "", capture_output=True, text=True,
+                              cwd=ROOT_DIR, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"Could not update GitHub: {exc}"
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip().splitlines()
+        return "Could not update GitHub: " + (detail[-1] if detail else f"gh exited {proc.returncode}")
+    return "GitHub updated -- the cloud monitor uses it from its next run."
 
 
 def _safe_next(raw: str | None) -> str:
@@ -143,6 +182,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "/login": self._post_login,
             "/logout": self._post_logout,
             "/add-site": self._post_add_site,
+            "/delete-site": self._post_delete_site,
+            "/save-webhook": self._post_save_webhook,
             "/change-password": self._post_change_password,
         }.get(path)
         if handler is None:
@@ -197,6 +238,46 @@ class DashboardHandler(BaseHTTPRequestHandler):
             conn.close()
         print(f"[ADD-SITE] ({user['username']}) {message}", flush=True)
         self._redirect("/?msg=" + urllib.parse.quote(message) + "#websites")
+
+    def _post_delete_site(self, form) -> None:
+        conn, user = self._require_user()
+        if user is None:
+            return
+        url = (form.get("url") or [""])[0].strip()
+        try:
+            # Drop it (and any sections under it) from urls.txt, then from the
+            # db so it leaves the dashboard -- also when it was only in the db.
+            in_file = sites.remove_site(url) if url else []
+            deleted = [u for u in (in_file or [url]) if db.delete_site(conn, u)]
+        finally:
+            conn.close()
+        message = f"Deleted {url}." if (in_file or deleted) else f"{url or 'Site'} was not found."
+        print(f"[DELETE-SITE] ({user['username']}) {message}", flush=True)
+        self._redirect("/?msg=" + urllib.parse.quote(message) + "#websites")
+
+    def _post_save_webhook(self, form) -> None:
+        conn, user = self._require_user()
+        if user is None:
+            return
+        key = (form.get("key") or [""])[0]
+        action = (form.get("action") or ["save"])[0]
+        value = (form.get("url") or [""])[0].strip()
+        labels = {k: label for k, label, _ in WEBHOOK_SETTINGS}
+        try:
+            if key not in labels:
+                message = "Unknown webhook."
+            elif action == "remove":
+                db.set_setting(conn, key, None)
+                message = f"{labels[key]} removed. " + _sync_github_secret(key, None)
+            elif not value.startswith("https://") or " " in value:
+                message = "Webhook must be an https:// link."
+            else:
+                db.set_setting(conn, key, value)
+                message = f"{labels[key]} saved. " + _sync_github_secret(key, value)
+        finally:
+            conn.close()
+        print(f"[WEBHOOK] ({user['username']}) {message}", flush=True)
+        self._redirect("/?msg=" + urllib.parse.quote(message) + "#settings")
 
     def _post_change_password(self, form) -> None:
         conn, user = self._require_user()

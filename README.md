@@ -117,6 +117,18 @@ python send_test_teams_alert.py      # verify a TEAMS_*_WEBHOOK_URL is wired up
 `website_monitor.py` exits with code `1` if any site is down (single-run mode
 only) — useful for CI or a scheduled task.
 
+## Continuous monitoring in the cloud (laptop off)
+
+`.github/workflows/monitor.yml` runs `run_fast_checks.py` on GitHub Actions
+every 30 minutes (fits the free Actions minutes of a private repo). When a site newly goes down, one card is posted to Teams right
+away; a site that stays down isn't re-posted every run (state is kept in the
+Actions cache).
+
+One-time setup: repo → **Settings → Secrets and variables → Actions → New
+repository secret** → `TEAMS_WEBHOOK_URL` = the Teams Workflows webhook link
+(optionally `TEAMS_DM_WEBHOOK_URL` too). Then push the workflow. Watch runs in
+the repo's **Actions** tab.
+
 ## Automate it (Windows)
 
 ```powershell
@@ -126,12 +138,12 @@ only) — useful for CI or a scheduled task.
 
 | Task | Runs | Command |
 |---|---|---|
-| `WebsiteMonitor-DailyReport` | **Mon–Fri 09:30** | `daily_report.py` — checks every site, then posts the Teams group card (no card Sat/Sun; `DAILY_REPORT_WEEKENDS=1` to send anyway) |
 | `WebsiteMonitor-FullCrawl` | daily 03:00 | `run_full_crawl.py` — broken-link crawl (`alerts.log` only) |
+| `WebsiteMonitor-Security` | daily 03:30 | `run_security_checks.py` — security scan (dashboard + `alerts.log`) |
 
-**Monitoring runs once a day**, inside `daily_report.py` right before the card
-— there is no hourly check. Want fresher data on demand? Open the live
-dashboard (it re-checks every site on load) or run `python run_fast_checks.py`.
+The old `WebsiteMonitor-DailyReport` task is removed by the setup script —
+the down alert and the daily down report both run in the cloud (see above). For fresh data on demand, open the live dashboard (it
+re-checks every site on load) or run `python run_fast_checks.py`.
 
 ## Live dashboard & login
 
@@ -180,27 +192,20 @@ overloaded) and nothing else. There is no "warnings" category; a site the
 checker can't classify (WAF block, JS-only page) shows as **UNVERIFIED** and
 never alerts.
 
-Alerts always go to the console and `alerts.log`. They also go to Microsoft
-Teams via one or both of these — set whichever you want:
-
-| Env var | Where it lands | When |
-|---|---|---|
-| `TEAMS_WEBHOOK_URL` | a Teams **channel** | real-time, on change |
-| `TEAMS_DM_WEBHOOK_URL` | a **1:1 chat** to one person | real-time, on change |
-| `TEAMS_DAILY_WEBHOOK_URL` | a Teams **group chat** | when you run `daily_report.py` |
+Alerts always go to the console and `alerts.log`. Teams gets **one webhook**:
+the "sites down" card is posted to it as soon as a site goes down (only when
+the down list gains a site). Set it in the live dashboard's **Settings → Teams
+alerts**, or as an env var (the Settings value wins):
 
 ```bash
-setx TEAMS_WEBHOOK_URL "https://.../workflows/..."        # channel, real-time
-setx TEAMS_DM_WEBHOOK_URL "https://.../workflows/..."     # one person, real-time
-setx TEAMS_DAILY_WEBHOOK_URL "https://.../workflows/..."  # group chat, daily digest
-python send_test_teams_alert.py                           # verify (posts to whichever is set)
-python daily_report.py                                    # send the daily group card now
+setx TEAMS_WEBHOOK_URL "https://.../workflows/..."        # the one Teams webhook
+setx TEAMS_DM_WEBHOOK_URL "https://.../workflows/..."     # optional extra 1:1 copy
+python send_test_teams_alert.py                           # verify (posts a test card)
 ```
 
-`daily_report.py` runs a fresh check and posts **one card** to
-`TEAMS_DAILY_WEBHOOK_URL` — the down sites, or "✅ all sites up". It's
-scheduled **Mon–Fri at 09:30** (`WebsiteMonitor-DailyReport`) and skips
-weekends; run it manually any time (weekend runs need `DAILY_REPORT_WEEKENDS=1`).
+`daily_report.py` posts a "sites still down" card to the same webhook **every
+day at 09:30 IST** (weekends too) via `.github/workflows/daily-report.yml` —
+**only when at least one site is down**. When everything is up, nothing is sent.
 
 **Making the DM webhook** (Teams → Apps → **Workflows** → New):
 
@@ -229,3 +234,19 @@ hour.
 State is kept in `.digest_state.json` (delete it to force a fresh card next
 run). Per-site detail, recoveries, and SSL/link/structure alerts all still go
 to the console + `alerts.log`, just not to Teams.
+
+## Security scan (no credentials)
+
+`run_security_checks.py` (scheduled daily 03:30, task `WebsiteMonitor-Security`) runs external checks from
+`monitoring/security_checks.py` against every site and stores findings for the dashboard's **Security**
+column / "Security scan" panel. High-severity findings also log to `alerts.log` (never the Teams card).
+
+- **Headers/HTTPS:** missing HSTS/CSP/X-Frame-Options/nosniff, version disclosure, mixed content, http not redirecting.
+- **Exposed files:** `.env`, `.git`, wp-config backups, DB dumps, backup archives, phpinfo, debug logs (content-verified).
+- **Malware indicators:** hidden iframes, hidden external-link blocks, spam links, obfuscated JS, miners, redirects,
+  and *new* external script/iframe hosts (flagged for 14 days after first seen; first run is the baseline).
+- **Vulnerabilities (surface):** outdated WordPress core / plugins (via wordpress.org APIs), jQuery < 3.5,
+  directory listing, user enumeration, xmlrpc.
+- **Domain expiry** via RDAP; **Google Safe Browsing** if `SAFE_BROWSING_API_KEY` is set.
+
+These are indicators, not proof; server-side file/malware scanning needs hosting access.
