@@ -1,8 +1,9 @@
 # Daily "sites still down" card -- runs on GitHub's servers every day
-# (weekends too) at 09:30 IST. Posts to TEAMS_WEBHOOK_URL ONLY when at least
-# one site is down; when everything is up, nothing is sent.
+# (weekends too) at 09:30 IST. Posts ONLY when at least one site is down;
+# when everything is up, nothing is sent.
 #
-# Uses the same repository secret as monitor.yml: TEAMS_WEBHOOK_URL.
+# Sends to its own repository secret, TEAMS_DAILY_WEBHOOK_URL -- a separate
+# Teams link from the immediate down alerts (TEAMS_WEBHOOK_URL, monitor.yml).
 
 name: Daily down report
 
@@ -39,6 +40,6 @@ jobs:
 
       - name: Check sites and post the card if any are down
         env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          TEAMS_DAILY_WEBHOOK_URL: ${{ secrets.TEAMS_DAILY_WEBHOOK_URL }}
           PYTHONIOENCODING: utf-8
         run: .venv/bin/python daily_report.py

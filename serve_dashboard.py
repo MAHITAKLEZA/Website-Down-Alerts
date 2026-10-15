@@ -56,9 +56,8 @@ async def _run_live_pass_and_render(user, flash: str | None) -> str:
     try:
         await run_pass(conn)
         data = fetch_data(conn)
-        # (saved in Settings, env fallback) -- same lookup order as get_teams_webhook().
-        env_url = os.environ.get("TEAMS_WEBHOOK_URL") or os.environ.get("TEAMS_DAILY_WEBHOOK_URL")
-        webhooks = {"TEAMS_WEBHOOK_URL": (db.get_setting(conn, "TEAMS_WEBHOOK_URL"), env_url)}
+        # (saved in Settings, env fallback) -- same lookup order as notifiers.get_webhook_url().
+        webhooks = {key: (db.get_setting(conn, key), os.environ.get(key)) for key, _, _ in WEBHOOK_SETTINGS}
         return render(data, live=True, flash=flash, user=user, webhooks=webhooks)
     finally:
         conn.close()

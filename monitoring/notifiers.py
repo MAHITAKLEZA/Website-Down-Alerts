@@ -1,10 +1,12 @@
-"""Alert delivery. Always logs to console + alerts.log; also posts to ONE
-Microsoft Teams webhook that gets everything -- the "N sites down" alert
-card and the daily report (see get_teams_webhook). It comes from, in order:
+"""Alert delivery. Always logs to console + alerts.log; also posts to two
+separate Microsoft Teams webhooks:
 
-  1. the webhook saved in the live dashboard's Settings tab (monitoring.db)
-  2. the TEAMS_WEBHOOK_URL environment variable
-  3. the older TEAMS_DAILY_WEBHOOK_URL environment variable
+  TEAMS_WEBHOOK_URL        -> the immediate "N sites down" alert card (get_teams_webhook)
+  TEAMS_DAILY_WEBHOOK_URL  -> the 09:30 daily down report (get_daily_webhook)
+
+Each comes from the live dashboard's Settings tab (monitoring.db) if saved
+there, else the environment variable of the same name (GitHub Actions passes
+the repository secrets of the same names).
 
 TEAMS_DM_WEBHOOK_URL (env only, optional) also gets a copy of the down alert
 as a 1:1 chat. The down-alert card is only sent when the down-site list has
@@ -307,10 +309,14 @@ def get_webhook_url(key: str) -> str | None:
 
 
 def get_teams_webhook() -> str | None:
-    """The ONE Teams webhook that gets everything -- down alerts and the daily
-    report. Saved in Settings, else TEAMS_WEBHOOK_URL, else the older
-    TEAMS_DAILY_WEBHOOK_URL env var."""
-    return get_webhook_url("TEAMS_WEBHOOK_URL") or os.environ.get("TEAMS_DAILY_WEBHOOK_URL") or None
+    """Webhook for the immediate "site down" alerts (TEAMS_WEBHOOK_URL)."""
+    return get_webhook_url("TEAMS_WEBHOOK_URL")
+
+
+def get_daily_webhook() -> str | None:
+    """Webhook for the 09:30 daily down report (TEAMS_DAILY_WEBHOOK_URL) --
+    a separate Teams chat/channel from the immediate alerts."""
+    return get_webhook_url("TEAMS_DAILY_WEBHOOK_URL")
 
 
 def get_notifier():

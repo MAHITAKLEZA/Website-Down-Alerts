@@ -10,7 +10,8 @@
 #
 # Nothing is sent until the webhook is connected: repo -> Settings -> Secrets
 # and variables -> Actions -> New repository secret:
-#   TEAMS_WEBHOOK_URL = <Teams Workflows webhook link>
+#   TEAMS_WEBHOOK_URL = <Teams Workflows link for the immediate down alerts>
+#   (the 09:30 daily report uses its own secret, TEAMS_DAILY_WEBHOOK_URL)
 #
 # Every 30 min keeps this within the 2,000 free Actions minutes/month of a
 # private repo (the venv is cached so each run is ~1 billed minute).

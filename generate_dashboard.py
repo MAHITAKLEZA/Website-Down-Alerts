@@ -230,9 +230,12 @@ def security_summary(sec: dict | None):
 
 
 WEBHOOK_SETTINGS = [
-    ("TEAMS_WEBHOOK_URL", "Teams webhook",
-     "Sent here: an alert when a site goes down (checked every 30 min), and a daily 09:30 report while "
-     "any site is still down. Saving also updates the GitHub secret so the cloud monitor uses it."),
+    ("TEAMS_WEBHOOK_URL", "Down alerts",
+     "An alert as soon as a site goes down (checked every 30 min). "
+     "Saving also updates the GitHub secret so the cloud monitor uses it."),
+    ("TEAMS_DAILY_WEBHOOK_URL", "Daily 09:30 report",
+     "Every day at 09:30 IST, the sites still down (nothing is sent when all are up). "
+     "Saving also updates the GitHub secret."),
 ]
 
 

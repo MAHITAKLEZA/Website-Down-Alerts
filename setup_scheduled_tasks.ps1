@@ -7,10 +7,13 @@
                                                     (headers, exposed files, malware
                                                      indicators, WP/jQuery versions,
                                                      domain expiry; dashboard + alerts.log)
+      WebsiteMonitor-DailyReport  daily at 09:32  -> daily_report.py --fallback
+                                                    (sends the down card only if
+                                                     GitHub's 09:30 run didn't)
 
     Down-site monitoring + Teams alerts run in the cloud every few minutes
     (.github/workflows/monitor.yml); the daily down report too
-    (.github/workflows/daily-report.yml).
+    (.github/workflows/daily-report.yml), with this PC as backup.
 
     Tasks run as the current user, only while you are logged on, so they
     inherit your user environment (PATH, TEAMS_* webhook vars, etc).
@@ -50,14 +53,6 @@ if (Get-ScheduledTask -TaskName "WebsiteMonitor-Fast" -ErrorAction SilentlyConti
     Write-Host "Removed WebsiteMonitor-Fast (no more hourly checks)"
 }
 
-# The daily report now runs in the cloud (.github/workflows/daily-report.yml,
-# every day 09:30 IST, only when a site is down). Remove the old local task so
-# the card isn't sent twice.
-if (Get-ScheduledTask -TaskName $daily -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $daily -Confirm:$false
-    Write-Host "Removed $daily (daily report runs on GitHub Actions now)"
-}
-
 # --- Full crawl: daily at 03:00 ---
 $fullAction  = New-ScheduledTaskAction -Execute $python -Argument "run_full_crawl.py" -WorkingDirectory $dir
 $fullTrigger = New-ScheduledTaskTrigger -Daily -At 3am
@@ -71,5 +66,14 @@ $secTrigger = New-ScheduledTaskTrigger -Daily -At 3:30am
 Register-ScheduledTask -TaskName $sec -Action $secAction -Trigger $secTrigger `
     -Principal $principal -Settings $settings -Force | Out-Null
 Write-Host "Registered $sec (daily 03:30)"
+
+# --- Daily down report: 09:32, backup for GitHub's 09:30 run ---
+# --fallback skips sending if GitHub already ran today. pythonw = no window.
+$pythonw = Join-Path (Split-Path $python) "pythonw.exe"
+$dailyAction  = New-ScheduledTaskAction -Execute $pythonw -Argument "daily_report.py --fallback" -WorkingDirectory $dir
+$dailyTrigger = New-ScheduledTaskTrigger -Daily -At 9:32am
+Register-ScheduledTask -TaskName $daily -Action $dailyAction -Trigger $dailyTrigger `
+    -Principal $principal -Settings $settings -Force | Out-Null
+Write-Host "Registered $daily (daily 09:32, only if GitHub didn't send)"
 
 Write-Host "`nDone. View them in Task Scheduler, or run:  Get-ScheduledTask WebsiteMonitor-*"

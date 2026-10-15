@@ -125,8 +125,14 @@ away; a site that stays down isn't re-posted every run (state is kept in the
 Actions cache).
 
 One-time setup: repo → **Settings → Secrets and variables → Actions → New
-repository secret** → `TEAMS_WEBHOOK_URL` = the Teams Workflows webhook link
-(optionally `TEAMS_DM_WEBHOOK_URL` too). Then push the workflow. Watch runs in
+repository secret** → add two secrets, one per Teams link:
+
+| Secret | Gets |
+|---|---|
+| `TEAMS_WEBHOOK_URL` | the immediate alert when a site goes down (`monitor.yml`, every 30 min) |
+| `TEAMS_DAILY_WEBHOOK_URL` | the 09:30 IST daily down report (`daily-report.yml`) |
+
+Then push the workflows. Watch runs in
 the repo's **Actions** tab.
 
 ## Automate it (Windows)
@@ -192,19 +198,21 @@ overloaded) and nothing else. There is no "warnings" category; a site the
 checker can't classify (WAF block, JS-only page) shows as **UNVERIFIED** and
 never alerts.
 
-Alerts always go to the console and `alerts.log`. Teams gets **one webhook**:
-the "sites down" card is posted to it as soon as a site goes down (only when
-the down list gains a site). Set it in the live dashboard's **Settings → Teams
-alerts**, or as an env var (the Settings value wins):
+Alerts always go to the console and `alerts.log`. Teams gets **two separate
+webhooks**: the "sites down" card goes to `TEAMS_WEBHOOK_URL` as soon as a site
+goes down (only when the down list gains a site), and the daily report goes to
+`TEAMS_DAILY_WEBHOOK_URL`. Set them in the live dashboard's **Settings → Teams
+alerts**, or as env vars (the Settings value wins):
 
 ```bash
-setx TEAMS_WEBHOOK_URL "https://.../workflows/..."        # the one Teams webhook
-setx TEAMS_DM_WEBHOOK_URL "https://.../workflows/..."     # optional extra 1:1 copy
+setx TEAMS_WEBHOOK_URL "https://.../workflows/..."        # immediate down alerts
+setx TEAMS_DAILY_WEBHOOK_URL "https://.../workflows/..."  # 09:30 daily report
+setx TEAMS_DM_WEBHOOK_URL "https://.../workflows/..."     # optional extra 1:1 copy of down alerts
 python send_test_teams_alert.py                           # verify (posts a test card)
 ```
 
-`daily_report.py` posts a "sites still down" card to the same webhook **every
-day at 09:30 IST** (weekends too) via `.github/workflows/daily-report.yml` —
+`daily_report.py` posts a "sites still down" card to `TEAMS_DAILY_WEBHOOK_URL`
+**every day at 09:30 IST** (weekends too) via `.github/workflows/daily-report.yml` —
 **only when at least one site is down**. When everything is up, nothing is sent.
 
 **Making the DM webhook** (Teams → Apps → **Workflows** → New):
