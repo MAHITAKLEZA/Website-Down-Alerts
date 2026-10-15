@@ -22,12 +22,18 @@ from urllib.parse import urlparse
 
 DEFAULT_URLS_FILE = Path(__file__).resolve().parent.parent / "urls.txt"
 
+# Inline option: "https://site.com  # 403=down" -> a 403 response counts as
+# DOWN (alerts) instead of "unverified". Only for sites with no bot-blocking
+# firewall, where 403 really means the site is broken.
+FORBIDDEN_IS_DOWN = re.compile(r"\b403\s*=\s*down\b", re.IGNORECASE)
+
 
 @dataclass
 class Site:
     name: str
     url: str
     parent: str | None = None  # None for a top-level site; the parent URL for a section
+    forbidden_is_down: bool = False  # "# 403=down" on the URL line: HTTP 403 alerts as DOWN
 
 
 def _split_inline_comment(line: str) -> tuple[str, str | None]:
@@ -67,15 +73,20 @@ def load_sites(path: Path = DEFAULT_URLS_FILE, include_sections: bool = True) ->
         url, inline_label = _split_inline_comment(stripped)
         if not url:
             continue
+        # Per-site option in the inline comment: "403=down" (not part of the label).
+        forbidden_is_down = bool(inline_label and FORBIDDEN_IS_DOWN.search(inline_label))
+        if forbidden_is_down:
+            inline_label = FORBIDDEN_IS_DOWN.sub("", inline_label).strip(" ,;") or None
 
         if indented and last_top_level is not None:
             if include_sections:
                 label = _section_label(url, inline_label or pending_name)
                 sites.append(
-                    Site(name=f"{last_top_level.name} > {label}", url=url, parent=last_top_level.url)
+                    Site(name=f"{last_top_level.name} > {label}", url=url, parent=last_top_level.url,
+                         forbidden_is_down=forbidden_is_down)
                 )
         else:
-            site = Site(name=pending_name or url, url=url)
+            site = Site(name=pending_name or url, url=url, forbidden_is_down=forbidden_is_down)
             sites.append(site)
             last_top_level = site
         pending_name = None

@@ -124,10 +124,15 @@ def make_http_strategy() -> AsyncHTTPCrawlerStrategy:
     return AsyncHTTPCrawlerStrategy(browser_config=HTTPCrawlerConfig(headers={"Accept-Encoding": "gzip, deflate"}))
 
 
-async def check_url_full(crawler: AsyncWebCrawler, url: str, timeout_ms: int):
+async def check_url_full(crawler: AsyncWebCrawler, url: str, timeout_ms: int, forbidden_is_down: bool = False):
     """Like check_url, but also returns the raw CrawlResult (or None) so
     callers that need the fetched HTML (e.g. page analysis) don't have to
-    fetch the page a second time."""
+    fetch the page a second time.
+
+    forbidden_is_down: treat HTTP 403 as DOWN instead of UNCERTAIN -- for a
+    site with no bot-blocking WAF, where a 403 means it's really broken
+    (set per site with "# 403=down" in urls.txt)."""
+    ambiguous = set() if forbidden_is_down else AMBIGUOUS_BLOCK_STATUSES
     started = time.perf_counter()
     checked_at = datetime.now(timezone.utc).isoformat()
     config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, page_timeout=timeout_ms)
@@ -163,7 +168,7 @@ async def check_url_full(crawler: AsyncWebCrawler, url: str, timeout_ms: int):
             reason += " (page may just be a JS-rendered app; this checker does not run a browser)"
             return WebsiteStatus(url, "UNCERTAIN", status_code, reason, elapsed_ms, checked_at), result
 
-        if status_code in AMBIGUOUS_BLOCK_STATUSES:
+        if status_code in ambiguous:
             reason += " (could be a WAF/bot-protection block rather than the site being down; verify manually)"
             return WebsiteStatus(url, "UNCERTAIN", status_code, reason, elapsed_ms, checked_at), result
 
@@ -180,7 +185,7 @@ async def check_url_full(crawler: AsyncWebCrawler, url: str, timeout_ms: int):
         ), result
 
     if status_code is not None and status_code >= 400:
-        status = "UNCERTAIN" if status_code in AMBIGUOUS_BLOCK_STATUSES else "DOWN"
+        status = "UNCERTAIN" if status_code in ambiguous else "DOWN"
         return WebsiteStatus(url, status, status_code, f"HTTP {status_code}", elapsed_ms, checked_at), result
 
     content = (result.markdown or "").strip() if hasattr(result, "markdown") else ""

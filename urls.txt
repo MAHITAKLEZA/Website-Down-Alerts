@@ -10,6 +10,11 @@
 #     https://eeshahospitals.com/book-appointment   # Appointments
 #     https://eeshahospitals.com/patient-portal     # Patient Portal
 #
+# Add "# 403=down" after a URL to alert when that site returns HTTP 403
+# (normally 403 is "unverified", since bot-blocking firewalls send it to
+# monitors while the site works fine for people). Don't use it on sites like
+# Right at Home / Assured Home Nursing that always 403 the monitor.
+#
 # Kleza
 https://kleza.io
 # Interim Healthcare
@@ -37,7 +42,7 @@ https://jiomedfamilycare.com
 # Eesha Hospitals
 https://eeshahospitals.com
 # BMR Law Offices
-https://bmrlawoffices.com
+https://bmrlawoffices.com  # 403=down
 # Tarish Financial
 https://www.tarishfinancial.com
 # Ojas Infinity

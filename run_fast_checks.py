@@ -30,7 +30,7 @@ SSL_WARNING_DAYS = 30
 async def process_site(crawler: AsyncWebCrawler, conn, site) -> None:
     site_id = db.get_or_create_site(conn, site.name, site.url)
 
-    status, result = await check_url_full(crawler, site.url, TIMEOUT_MS)
+    status, result = await check_url_full(crawler, site.url, TIMEOUT_MS, forbidden_is_down=site.forbidden_is_down)
     # status.ssl_days_remaining is already populated by check_url_full for UP sites.
 
     db.insert_check(conn, site_id, status)
