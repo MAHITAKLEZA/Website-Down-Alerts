@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import db
@@ -31,6 +31,12 @@ from .notifiers import get_notifier
 # Remembers which down sites the last Teams digest card covered, so an
 # unchanged outage list isn't re-sent every pass.
 DIGEST_STATE_FILE = Path(__file__).resolve().parent.parent / ".digest_state.json"
+
+# A site that stays down is listed again in a card after this many days.
+DIGEST_REPEAT_DAYS = int(os.environ.get("DIGEST_REPEAT_DAYS", "2"))
+
+# No Teams cards before this moment (checks and logs still run).
+NOTIFY_START = datetime.fromisoformat(os.environ.get("NOTIFY_START", "2026-10-23T00:00:00+05:30"))
 
 # While a site stays DOWN, re-send the "still down" alert this often (seconds)
 # so an ongoing outage that affects many users keeps nagging instead of going
@@ -76,49 +82,60 @@ async def _fire(conn, site_id: int, site_name: str, alert_type: str, severity: s
     await get_notifier().notify(site_name, alert)
 
 
-def _load_digest_state() -> set[str]:
+def _load_digest_state() -> dict[str, str]:
+    """site name -> ISO time its down-card was last sent."""
     try:
-        return set(json.loads(DIGEST_STATE_FILE.read_text(encoding="utf-8")).get("notified", []))
+        raw = json.loads(DIGEST_STATE_FILE.read_text(encoding="utf-8")).get("notified", {})
     except (OSError, ValueError):
-        return set()
+        return {}
+    if isinstance(raw, list):  # older format: names only
+        return {name: _now() for name in raw}
+    return dict(raw)
 
 
-def _save_digest_state(names: set[str]) -> None:
+def _save_digest_state(state: dict[str, str]) -> None:
     try:
-        DIGEST_STATE_FILE.write_text(json.dumps({"notified": sorted(names)}, indent=2), encoding="utf-8")
+        DIGEST_STATE_FILE.write_text(json.dumps({"notified": dict(sorted(state.items()))}, indent=2), encoding="utf-8")
     except OSError as exc:  # noqa: BLE001 - persistence is best-effort
         print(f"[TEAMS] could not write {DIGEST_STATE_FILE.name}: {exc}")
 
 
 async def send_outage_digest(conn) -> None:
-    """Post a Teams card listing ONLY the sites that went down since the last
-    card. Sites already reported are not repeated, and nothing is sent when
-    no site is newly down. Per-site alerts still hit the console + alerts.log
-    as they happen."""
+    """Post a Teams card when a site is newly down, or when a site has stayed
+    down for DIGEST_REPEAT_DAYS since it was last sent. The card lists the new
+    sites plus any sites due for that reminder; everything else stays quiet.
+    Per-site alerts still hit the console + alerts.log as they happen."""
+    if _now_dt() < NOTIFY_START:
+        print(f"[TEAMS] notifications start {NOTIFY_START.isoformat()} -- nothing sent yet")
+        return
+
     outages = db.get_open_outages(conn)
     current = {r["name"] for r in outages}
-    already_notified = _load_digest_state()
-    new_sites = current - already_notified
+    # Recovered sites drop out of the state, so a later outage counts as new.
+    state = {n: t for n, t in _load_digest_state().items() if n in current}
 
-    if not new_sites:
-        # Drop recovered sites from the stored set so a re-outage later counts
-        # as new, but send nothing -- the list hasn't gained anything.
-        _save_digest_state(current)
+    repeat = timedelta(days=DIGEST_REPEAT_DAYS)
+    new_sites = {n for n in current if n not in state}
+    due_sites = {n for n, t in state.items() if _now_dt() - _parse_ts(t) >= repeat}
+    to_send = new_sites | due_sites
+
+    if not to_send:
+        _save_digest_state(state)
         if current:
-            print(f"[TEAMS] {len(current)} site(s) still down, nothing new -- card not re-sent")
+            print(f"[TEAMS] {len(current)} site(s) still down, nothing new or due -- card not re-sent")
         else:
             print("[TEAMS] no open outages -- nothing to send")
         return
 
     checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    print(f"[TEAMS] sending card for {len(new_sites)} newly-down site(s)")
-    # Card lists only the sites that just went down -- sites already reported
-    # in an earlier card are not repeated.
-    rows = sorted((r["name"], r["message"]) for r in outages if r["name"] in new_sites)
-    sent = await get_notifier().post_teams_digest(rows, checked_at)
-    # Only mark the new sites as notified if the card actually went out; on a
-    # webhook failure keep them pending so the next pass retries.
-    _save_digest_state(current if sent else (already_notified & current))
+    print(f"[TEAMS] sending card: {len(new_sites)} newly down, {len(due_sites)} still down after {DIGEST_REPEAT_DAYS}d")
+    rows = sorted((r["name"], r["message"]) for r in outages if r["name"] in to_send)
+    sent = await get_notifier().post_teams_digest(rows, checked_at, len(new_sites))
+    # Only record the send if the card went out; on a webhook failure the next pass retries.
+    if sent:
+        now = _now()
+        state.update({n: now for n in to_send})
+    _save_digest_state(state)
 
 
 async def evaluate_availability(conn, site_id: int, site_name: str) -> None:
@@ -146,6 +163,11 @@ async def evaluate_availability(conn, site_id: int, site_name: str) -> None:
                     conn, site_id, site_name, "availability", "critical",
                     f"Site is down: {current['reason']} (still down after {down_for})",
                 )
+        return
+
+    if current["status"] == "UNCERTAIN" and open_alert and any(w in open_alert["message"].lower() for w in ("timed out", "timeout")):
+        # Timeouts no longer count as down; close an outage that one opened.
+        db.resolve_open_alerts(conn, site_id, "availability", _now())
         return
 
     if current["status"] == "UP" and open_alert:
