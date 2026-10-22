@@ -144,7 +144,11 @@ async def check_url_full(crawler: AsyncWebCrawler, url: str, timeout_ms: int, fo
         # 0 = no HTTP response was ever received (standard convention, same as
         # curl's "000"): covers DNS failures, TLS/SSL handshake failures, and
         # refused connections -- there's genuinely no HTTP status at that point.
-        return WebsiteStatus(url, "DOWN", 0, clean_reason(str(exc)), elapsed_ms, checked_at), None
+        reason = clean_reason(str(exc))
+        # A slow/no response is not proof the site is down -- never alert on it.
+        if isinstance(exc, asyncio.TimeoutError) or "timeout" in reason.lower() or "timed out" in reason.lower():
+            return WebsiteStatus(url, "UNCERTAIN", 0, reason, elapsed_ms, checked_at), None
+        return WebsiteStatus(url, "DOWN", 0, reason, elapsed_ms, checked_at), None
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     status_code = getattr(result, "status_code", None)
