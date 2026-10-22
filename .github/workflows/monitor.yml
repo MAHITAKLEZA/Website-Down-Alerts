@@ -1,27 +1,28 @@
 # Continuous monitoring in the cloud -- runs on GitHub's servers, so Teams
 # alerts keep going out even when the laptop is off.
 #
-# Every 30 minutes this does one run_fast_checks.py pass. When a site goes
-# DOWN, one "N sites down" card listing the down sites is posted to
-# TEAMS_WEBHOOK_URL. A site that stays down is not re-posted every run --
+# Every 5 minutes this does one run_fast_checks.py pass. When a site goes
+# DOWN, a card listing ONLY the newly-down site(s) is posted to
+# TEAMS_WEBHOOK_URL. A site already sent in an earlier card is not sent
+# again while it stays down; once it recovers, a later outage is sent again.
 # monitoring.db + .digest_state.json are carried between runs via the Actions
-# cache so the de-dup state survives. (daily-report.yml re-lists still-down
-# sites once a day.)
+# cache so that "already sent" list survives. (daily-report.yml re-lists
+# still-down sites once a day.)
 #
 # Nothing is sent until the webhook is connected: repo -> Settings -> Secrets
 # and variables -> Actions -> New repository secret:
 #   TEAMS_WEBHOOK_URL = <Teams Workflows link for the immediate down alerts>
 #   (the 09:30 daily report uses its own secret, TEAMS_DAILY_WEBHOOK_URL)
 #
-# Every 30 min keeps this within the 2,000 free Actions minutes/month of a
-# private repo (the venv is cached so each run is ~1 billed minute).
-# GitHub may start scheduled runs a few minutes late under load.
+# The repo is public, so Actions minutes are free and unlimited; 5 minutes is
+# the shortest schedule GitHub allows. GitHub may start scheduled runs late
+# under load (often 5-15 min).
 
 name: Website monitor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 minutes
+    - cron: "*/5 * * * *"    # every 5 minutes (GitHub minimum)
   workflow_dispatch:          # "Run workflow" button in the Actions tab
 
 concurrency:

@@ -12,10 +12,9 @@
 - Broken links: severity scales with how many were found.
 
 The console + alerts.log get one line per alert as it happens. Teams instead
-gets a single combined "N sites down" card -- call send_outage_digest(conn)
-once after each pass. That card is only sent when the set of down sites has
-CHANGED since the last card (a newly-down site); an unchanged list is not
-re-sent, so a long outage doesn't reprint the same card every hour.
+gets a card listing only the newly-down sites -- call send_outage_digest(conn)
+once after each pass. Sites already reported in an earlier card are not
+repeated, so a long outage doesn't reprint the same site every hour.
 """
 
 from __future__ import annotations
@@ -92,10 +91,10 @@ def _save_digest_state(names: set[str]) -> None:
 
 
 async def send_outage_digest(conn) -> None:
-    """Post ONE combined Teams card listing every site currently in an open
-    outage -- but only when the down-site list has changed since the last card
-    (a newly-down site). An unchanged list is not re-sent. Per-site alerts
-    still hit the console + alerts.log as they happen."""
+    """Post a Teams card listing ONLY the sites that went down since the last
+    card. Sites already reported are not repeated, and nothing is sent when
+    no site is newly down. Per-site alerts still hit the console + alerts.log
+    as they happen."""
     outages = db.get_open_outages(conn)
     current = {r["name"] for r in outages}
     already_notified = _load_digest_state()
@@ -112,9 +111,11 @@ async def send_outage_digest(conn) -> None:
         return
 
     checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    print(f"[TEAMS] sending digest: {len(current)} site(s) down, {len(new_sites)} new")
-    rows = sorted(((r["name"], r["message"]) for r in outages), key=lambda x: (x[0] not in new_sites, x[0]))
-    sent = await get_notifier().post_teams_digest(rows, checked_at, new_count=len(new_sites))
+    print(f"[TEAMS] sending card for {len(new_sites)} newly-down site(s)")
+    # Card lists only the sites that just went down -- sites already reported
+    # in an earlier card are not repeated.
+    rows = sorted((r["name"], r["message"]) for r in outages if r["name"] in new_sites)
+    sent = await get_notifier().post_teams_digest(rows, checked_at)
     # Only mark the new sites as notified if the card actually went out; on a
     # webhook failure keep them pending so the next pass retries.
     _save_digest_state(current if sent else (already_notified & current))

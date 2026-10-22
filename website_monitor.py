@@ -362,9 +362,9 @@ class OutageTracker:
         await self._notifier.notify(r.url, alert_row)
 
     async def send_digest(self, results: list[WebsiteStatus]) -> None:
-        """One combined 'N sites down' card to Teams -- but only when the
-        down-list has changed since the last card (a newly-down site). An
-        unchanged list is not re-sent. Per-site lines still go to console/log."""
+        """Teams card listing only the sites that went down since the last
+        card; already-reported sites are not repeated. Per-site lines still
+        go to console/log."""
         down = [(r.url, r.reason) for r in results if r.status == "DOWN" and r.url in self._alerted]
         current = {url for url, _ in down}
         new_sites = current - self._digested
@@ -375,7 +375,9 @@ class OutageTracker:
             return
 
         checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        sent = await self._notifier.post_teams_digest(down, checked_at, new_count=len(new_sites))
+        # Card lists only the newly-down sites, not ones already reported.
+        new_down = [(url, reason) for url, reason in down if url in new_sites]
+        sent = await self._notifier.post_teams_digest(new_down, checked_at)
         self._digested = current if sent else (self._digested & current)
         self._save_state()
 
