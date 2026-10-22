@@ -21,8 +21,11 @@
 name: Website monitor
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"    # every 5 minutes (GitHub minimum)
+  # Scheduled runs are OFF: the Kleza server runs run_fast_checks.py whenever
+  # it is on (setup_scheduled_tasks.ps1). Re-enable by uncommenting these two
+  # lines (and don't run both, or each posts its own cards).
+  # schedule:
+  #   - cron: "*/5 * * * *"    # every 5 minutes (GitHub minimum)
   workflow_dispatch:          # "Run workflow" button in the Actions tab
 
 concurrency:
