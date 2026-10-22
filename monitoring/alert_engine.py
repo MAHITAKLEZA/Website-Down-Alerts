@@ -32,8 +32,9 @@ from .notifiers import get_notifier
 # unchanged outage list isn't re-sent every pass.
 DIGEST_STATE_FILE = Path(__file__).resolve().parent.parent / ".digest_state.json"
 
-# A site that stays down is listed again in a card after this many days.
-DIGEST_REPEAT_DAYS = int(os.environ.get("DIGEST_REPEAT_DAYS", "2"))
+# Days after which a site that is still down is listed again in a card.
+# Default 0 = never: a site is sent once per outage.
+DIGEST_REPEAT_DAYS = int(os.environ.get("DIGEST_REPEAT_DAYS", "0"))
 
 # No Teams cards before this moment (checks and logs still run).
 NOTIFY_START = datetime.fromisoformat(os.environ.get("NOTIFY_START", "2026-10-23T00:00:00+05:30"))
@@ -103,7 +104,7 @@ def _save_digest_state(state: dict[str, str]) -> None:
 async def send_outage_digest(conn) -> None:
     """Post a Teams card when a site is newly down, or when a site has stayed
     down for DIGEST_REPEAT_DAYS since it was last sent. The card lists the new
-    sites plus any sites due for that reminder; everything else stays quiet.
+    sites plus any sites due for that reminder (if enabled); everything else stays quiet.
     Per-site alerts still hit the console + alerts.log as they happen."""
     if _now_dt() < NOTIFY_START:
         print(f"[TEAMS] notifications start {NOTIFY_START.isoformat()} -- nothing sent yet")
@@ -116,7 +117,9 @@ async def send_outage_digest(conn) -> None:
 
     repeat = timedelta(days=DIGEST_REPEAT_DAYS)
     new_sites = {n for n in current if n not in state}
-    due_sites = {n for n, t in state.items() if _now_dt() - _parse_ts(t) >= repeat}
+    due_sites = (
+        {n for n, t in state.items() if _now_dt() - _parse_ts(t) >= repeat} if DIGEST_REPEAT_DAYS > 0 else set()
+    )
     to_send = new_sites | due_sites
 
     if not to_send:
