@@ -10,7 +10,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from datetime import datetime, timezone
 
@@ -70,25 +69,7 @@ async def run_pass(conn) -> None:
         await asyncio.gather(*(bound(s) for s in sites))
 
 
-# The scan only runs while this site (the Kleza server) is up. Override with
-# the SCAN_GATE_URL env var; set it empty to scan unconditionally.
-SCAN_GATE_URL = os.environ.get("SCAN_GATE_URL", "https://kleza.io")
-
-
-async def gate_is_up() -> bool:
-    if not SCAN_GATE_URL:
-        return True
-    async with AsyncWebCrawler(crawler_strategy=make_http_strategy()) as crawler:
-        status, _ = await check_url_full(crawler, SCAN_GATE_URL, TIMEOUT_MS)
-    print(f"[GATE] {SCAN_GATE_URL} is {status.status} ({status.reason})")
-    return status.status == "UP"
-
-
 async def main() -> None:
-    if not await gate_is_up():
-        print("[GATE] Kleza server is not up -- scan skipped, nothing sent")
-        return
-
     if not get_teams_webhook():
         print(
             "[TEAMS] no Teams webhook saved in Settings or set in this shell "
